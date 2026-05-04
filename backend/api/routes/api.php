@@ -18,6 +18,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route Modular Baru
     Route::get('/dashboard', [OliviaController::class, 'getDashboardData']);
     Route::post('/control', [OliviaController::class, 'updateControl']);
+
+    Route::get('/history', [OliviaController::class, 'getHistory']);
 }); // <--- PASTIKAN TANDA INI ADA UNTUK MENUTUP MIDDLEWARE
 
 // IoT Endpoints (Tanpa Auth agar ESP32 mudah akses)

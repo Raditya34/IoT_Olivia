@@ -12,61 +12,127 @@ use Illuminate\Support\Facades\Log;
 
 class OliviaController extends Controller
 {
+    /**
+     * ==========================================
+     * ENDPOINT UNTUK FRONTEND (FLUTTER APP)
+     * ==========================================
+     */
+
+    // 1. Ambil data terbaru untuk Dashboard & Monitor Real-time
     public function getDashboardData()
     {
         return response()->json([
-            'arang' => Esp1Arang::latest()->first() ?? ['suhu' => 0, 'volume' => 0],
-            'bleaching' => Esp2Bleaching::latest()->first() ?? ['suhu' => 0],
-            'validasi' => Esp3Validasi::latest()->first() ?? ['turbidity' => 0, 'viscosity' => 0, 'warna' => '-'],
-            'control' => MasterControl::first() ?? [
-                'system_on' => false,
-                'heater' => false,
-                'pompa' => false,
-                'motor_ac' => false,
-                'servo_pos' => 0
-            ]
+            'system_status' => MasterControl::first()->system_on ?? false,
+            'arang' => Esp1Arang::latest()->first() ?? [
+                'suhu' => 0, 'volume' => 0
+            ],
+            'bleaching' => Esp2Bleaching::latest()->first() ?? [
+                'suhu' => 0, 'valve' => false, 'pompa_1' => false,
+                'pompa_2' => false, 'pompa_3' => false,
+                'heater_1' => false, 'heater_2' => false, 'motor_ac_speed' => 0
+            ],
+            'validasi' => Esp3Validasi::latest()->first() ?? [
+                'volume' => 0, 'turbidity' => 0, 'viskositas' => 0, 'warna' => '-'
+            ],
         ]);
     }
 
+    // 2. Tombol ON/OFF Keseluruhan Sistem dari Dashboard
     public function updateControl(Request $request)
     {
+        $request->validate([
+            'system_on' => 'required|boolean'
+        ]);
+
         $control = MasterControl::first() ?: new MasterControl;
-        $control->fill($request->only([
-            'system_on', 'heater', 'pompa', 'motor_ac', 'servo_pos'
-        ]));
+        $control->system_on = $request->system_on;
         $control->save();
 
-        return response()->json(['message' => 'Kontrol diperbarui', 'data' => $control]);
+        $statusMessage = $control->system_on ? 'Sistem Dinyalakan' : 'Sistem Dimatikan';
+
+        return response()->json([
+            'message' => $statusMessage,
+            'data' => $control
+        ]);
     }
 
-    // Endpoint IoT dengan Error Logging
-    public function storeEsp1(Request $request) {
+    // 3. Ambil Data History untuk Halaman History di App
+    public function getHistory()
+    {
+        return response()->json([
+            // Mengambil 20 data terakhir untuk masing-masing proses
+            'arang' => Esp1Arang::latest()->take(20)->get(),
+            'bleaching' => Esp2Bleaching::latest()->take(20)->get(),
+            'validasi' => Esp3Validasi::latest()->take(20)->get(),
+        ]);
+    }
+
+
+    /**
+     * ==========================================
+     * ENDPOINT UNTUK IOT (EMQX / ESP32)
+     * ==========================================
+     */
+
+    // ESP 1: Arang
+    public function storeEsp1(Request $request)
+    {
         try {
-            $data = Esp1Arang::create($request->all());
+            $validated = $request->validate([
+                'suhu'   => 'required|numeric',
+                'volume' => 'required|numeric',
+            ]);
+
+            $data = Esp1Arang::create($validated);
             return response()->json($data, 201);
+
         } catch (\Exception $e) {
             Log::error("Error ESP1: " . $e->getMessage());
-            return response()->json(['error' => 'Gagal simpan data'], 500);
+            return response()->json(['error' => 'Gagal simpan data ESP1'], 500);
         }
     }
 
-    public function storeEsp2(Request $request) {
+    // ESP 2: Bleaching (Sensor & Status Aktuator)
+    public function storeEsp2(Request $request)
+    {
         try {
-            $data = Esp2Bleaching::create($request->all());
+            $validated = $request->validate([
+                'suhu'           => 'required|numeric',
+                'valve'          => 'required|boolean',
+                'pompa_1'        => 'required|boolean',
+                'pompa_2'        => 'required|boolean',
+                'pompa_3'        => 'required|boolean',
+                'heater_1'       => 'required|boolean',
+                'heater_2'       => 'required|boolean',
+                'motor_ac_speed' => 'required|integer',
+            ]);
+
+            $data = Esp2Bleaching::create($validated);
             return response()->json($data, 201);
+
         } catch (\Exception $e) {
             Log::error("Error ESP2: " . $e->getMessage());
-            return response()->json(['error' => 'Gagal simpan data'], 500);
+            return response()->json(['error' => 'Gagal simpan data ESP2'], 500);
         }
     }
 
-    public function storeEsp3(Request $request) {
+    // ESP 3: Validasi
+    public function storeEsp3(Request $request)
+    {
         try {
-            $data = Esp3Validasi::create($request->all());
+            $validated = $request->validate([
+                'volume'     => 'required|numeric',
+                'turbidity'  => 'required|numeric',
+                'viskositas' => 'required|numeric',
+                'warna'      => 'required|string',
+            ]);
+
+            $data = Esp3Validasi::create($validated);
             return response()->json($data, 201);
+
         } catch (\Exception $e) {
             Log::error("Error ESP3: " . $e->getMessage());
-            return response()->json(['error' => 'Gagal simpan data'], 500);
+            return response()->json(['error' => 'Gagal simpan data ESP3'], 500);
         }
     }
 }

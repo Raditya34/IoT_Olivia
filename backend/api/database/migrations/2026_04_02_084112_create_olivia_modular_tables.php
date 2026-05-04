@@ -9,9 +9,8 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
+public function up(): void
 {
-    // Tabel ESP 1 - Arang
     Schema::create('esp1_arang', function (Blueprint $table) {
         $table->id();
         $table->float('suhu');
@@ -19,30 +18,32 @@ return new class extends Migration
         $table->timestamp('created_at')->useCurrent();
     });
 
-    // Tabel ESP 2 - Bleaching
     Schema::create('esp2_bleaching', function (Blueprint $table) {
         $table->id();
         $table->float('suhu');
+        // Aktuator Monitor (Status yang dikirim ESP2 ke DB)
+        $table->boolean('valve')->default(false);
+        $table->boolean('pompa_1')->default(false);
+        $table->boolean('pompa_2')->default(false);
+        $table->boolean('pompa_3')->default(false);
+        $table->boolean('heater_1')->default(false);
+        $table->boolean('heater_2')->default(false);
+        $table->integer('motor_ac_speed')->default(0); // Nilai Dimmer
         $table->timestamp('created_at')->useCurrent();
     });
 
-    // Tabel ESP 3 - Validasi
     Schema::create('esp3_validasi', function (Blueprint $table) {
         $table->id();
-        $table->float('turbidity');
-        $table->float('viscosity');
-        $table->string('warna');
+        $table->float('volume');
+        $table->float('turbidity'); // NTU
+        $table->float('viskositas'); // cP
+        $table->string('warna'); // jernih, dll
         $table->timestamp('created_at')->useCurrent();
     });
 
-    // Tabel Master Control - ESP 2 Master
     Schema::create('master_controls', function (Blueprint $table) {
         $table->id();
-        $table->boolean('system_on')->default(false);
-        $table->boolean('heater')->default(false);
-        $table->boolean('pompa')->default(false);
-        $table->boolean('motor_ac')->default(false);
-        $table->integer('servo_pos')->default(0);
+        $table->boolean('system_on')->default(false); // Tombol On/Off utama
         $table->timestamps();
     });
 }

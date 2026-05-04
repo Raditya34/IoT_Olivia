@@ -7,6 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 class Esp2Bleaching extends Model
 {
     protected $table = 'esp2_bleaching';
-    protected $fillable = ['suhu']; // Kolom yang boleh diisi
+    protected $fillable = ['suhu', 'valve', 'pompa_1', 'pompa_2', 'pompa_3', 'heater_1', 'heater_2', 'motor_ac_speed']; // Kolom yang boleh diisi
     public $timestamps = false;
 }
