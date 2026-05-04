@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:get/get.dart'; // Tambahkan GetX
 
 import '../../routes/app_routes.dart';
 import '../../theme/app_colors.dart';
@@ -23,157 +24,71 @@ class _ProfilePageState extends State<ProfilePage> {
     _load();
   }
 
-  void safeNav(BuildContext context, String route, {Object? args}) {
-    // Tutup drawer kalau sedang kebuka (kalau gak kebuka, gak masalah)
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-
-    // Push di frame berikutnya supaya gak nabrak _debugLocked
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!context.mounted) return;
-      Navigator.of(context).pushNamed(route, arguments: args);
-    });
-  }
-
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      name = (prefs.getString('user_name') ?? '-').trim();
-      email = (prefs.getString('user_email') ?? '-').trim();
-      if (name.isEmpty) name = '-';
-      if (email.isEmpty) email = '-';
+      name = (prefs.getString('user_name') ?? 'Admin User').trim();
+      email = (prefs.getString('user_email') ?? 'admin@olivia.com').trim();
     });
   }
 
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('logged_in', false);
+    await prefs.clear();
 
-    if (!mounted) return;
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      AppRoutes.login,
-      (route) => false,
-    );
-  }
-
-  void _navigate(BuildContext context, String route) {
-    Navigator.pushReplacementNamed(context, route);
+    // Logout yang bersih, menghapus seluruh stack halaman
+    Get.offAllNamed(AppRoutes.login);
   }
 
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Profile',
+      title: 'Profil Pengguna',
       currentRoute: AppRoutes.profile,
-      onNavigate: (r) => _navigate(context, r),
       child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 20),
         children: [
           _header(context),
-          const SizedBox(height: 12),
-          _infoCard(context),
-          const SizedBox(height: 12),
-          _actions(context),
           const SizedBox(height: 24),
+          _infoCard(context),
+          const SizedBox(height: 24),
+          _actions(context),
         ],
       ),
     );
   }
 
   Widget _header(BuildContext context) {
-    final initials =
-        (name.isNotEmpty && name != '-') ? name.trim()[0].toUpperCase() : 'U';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-            color: Colors.black.withOpacity(0.05),
-          )
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              gradient: AppColors.modernGradient,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: Text(
-                initials,
-                style: AppText.h2(context)
-                    .copyWith(color: Colors.white, fontSize: 22),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: AppText.h2(context)),
-                const SizedBox(height: 4),
-                Text(email, style: AppText.muted(context)),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    _badge(context, 'OPERATOR', AppColors.tealDark),
-                    _badge(context, 'OLIVIA SYSTEM', AppColors.orangeDeep),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _badge(BuildContext context, String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.25)),
-      ),
-      child: Text(
-        text,
-        style: AppText.chip(context).copyWith(color: color),
-      ),
+    return Column(
+      children: [
+        const CircleAvatar(
+          radius: 46,
+          backgroundColor: AppColors.teal,
+          child: Icon(Icons.person, size: 50, color: Colors.white),
+        ),
+        const SizedBox(height: 16),
+        Text(name, style: AppText.h2(context)),
+        const SizedBox(height: 4),
+        Text(email, style: AppText.muted(context)),
+      ],
     );
   }
 
   Widget _infoCard(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Informasi Akun', style: AppText.h3(context)),
-          const SizedBox(height: 10),
-          _row(context, 'Nama', name),
-          const Divider(height: 18, color: AppColors.divider),
-          _row(context, 'Email', email),
-          const Divider(height: 18, color: AppColors.divider),
-          _row(context, 'Versi App', 'v1.0'),
+          _row(context, 'Role', 'Administrator'),
+          const Divider(height: 24),
+          _row(context, 'Status', 'Aktif'),
+          const Divider(height: 24),
+          _row(context, 'Versi Aplikasi', 'v1.0'),
         ],
       ),
     );

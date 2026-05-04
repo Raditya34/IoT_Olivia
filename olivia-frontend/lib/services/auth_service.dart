@@ -64,8 +64,9 @@ class AuthService {
         if (v is List && v.isNotEmpty) return v.first.toString();
       }
     }
-    if (data is Map && data['message'] != null)
+    if (data is Map && data['message'] != null) {
       return data['message'].toString();
+    }
     return 'Terjadi kesalahan';
   }
 }

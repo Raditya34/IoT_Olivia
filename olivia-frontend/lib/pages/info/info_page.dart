@@ -27,10 +27,6 @@ class _InfoPageState extends State<InfoPage> {
     super.dispose();
   }
 
-  void _navigate(BuildContext context, String route) {
-    Navigator.pushReplacementNamed(context, route);
-  }
-
   void _copy(String text) {
     // sengaja tanpa Clipboard plugin dulu (biar gak nambah dependency)
     ScaffoldMessenger.of(context).showSnackBar(
@@ -60,7 +56,6 @@ class _InfoPageState extends State<InfoPage> {
     return AppScaffold(
       title: 'Info & Support',
       currentRoute: AppRoutes.info,
-      onNavigate: (r) => _navigate(context, r),
       child: ListView(
         children: [
           _header(context),

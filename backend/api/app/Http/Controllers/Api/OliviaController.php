@@ -15,10 +15,20 @@ class OliviaController extends Controller
     public function getDashboardData()
     {
         return response()->json([
-            'esp1' => Esp1Arang::latest()->first(),
-            'esp2' => Esp2Bleaching::latest()->first(),
-            'esp3' => Esp3Validasi::latest()->first(),
-            'control' => MasterControl::latest()->first(),
+            //'esp1' => Esp1Arang::latest()->first(),
+            //'esp2' => Esp2Bleaching::latest()->first(),
+            //'esp3' => Esp3Validasi::latest()->first(),
+            //'control' => MasterControl::latest()->first(),
+            'arang' => Esp1Arang::latest()->first() ?? ['suhu' => 0, 'volume' => 0],
+            'bleaching' => Esp2Bleaching::latest()->first() ?? ['suhu' => 0],
+            'validasi' => Esp3Validasi::latest()->first() ?? ['turbidity' => 0, 'viscosity' => 0, 'warna' => '-'],
+            'control' => MasterControl::first() ?? [
+                'system_on' => false,
+                'heater' => false,
+                'pompa' => false,
+                'motor_ac' => false,
+                'servo_pos' => 0
+            ]
         ]);
     }
 

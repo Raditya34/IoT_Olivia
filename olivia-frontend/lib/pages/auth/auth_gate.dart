@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart'; // Tambahkan GetX
 import '../../../routes/app_routes.dart';
 import '../../../storage/auth_storage.dart';
 import '../../../services/api_service.dart';
@@ -18,31 +19,21 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _redirect() async {
-    final loggedIn = await AuthStorage.isLoggedIn();
-    final token = await AuthStorage.getToken();
-    final hasToken = loggedIn && token != null && token.isNotEmpty;
-
-    if (!mounted) return;
-
-    if (!hasToken) {
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
-      return;
-    }
-
-    // ✅ V2: Validasi token dengan /auth/me
     try {
+      final token = await AuthStorage.getToken();
+
+      if (token == null || token.isEmpty) {
+        Get.offAllNamed(AppRoutes.login); // Pakai GetX
+        return;
+      }
+
       final api = ApiService();
-      final res = await api.get('/auth/me'); // pastikan endpoint ini sudah ada
+      await api.get('/auth/me');
 
-      // Kalau sukses (200), user valid → masuk dashboard
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+      Get.offAllNamed(AppRoutes.dashboard); // Pakai GetX
     } catch (e) {
-      // Kalau 401/invalid token/failed request → bersihin session
       await AuthStorage.clear();
-
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
+      Get.offAllNamed(AppRoutes.login); // Pakai GetX
     }
   }
 

@@ -81,7 +81,6 @@ class _SignupPageState extends State<SignupPage> {
     return AppScaffold(
       title: '',
       currentRoute: AppRoutes.signup,
-      onNavigate: (_) {},
       showAppBar: false,
       showDrawer: false,
       child: Center(

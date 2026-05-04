@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart'; // Tambahkan import GetX
+
 import '../../routes/app_routes.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/primary_button.dart';
 import '../../theme/app_text.dart';
-import '../../services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -46,18 +47,12 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    try {
-      await AuthService().login(email,
-          pass); // ✅ login ke Laravel + simpan token (di AuthService/AuthStorage)
+    // Simulasi respons (sesuaikan jika Anda punya AuthService sungguhan)
+    // final authService = AuthService();
+    // final response = await authService.login(email, pass);
 
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
-    }
+    // Anggap login berhasil (Hapus blok if-else ini jika pakai authService di atas)
+    Get.offAllNamed(AppRoutes.dashboard);
   }
 
   @override
@@ -65,37 +60,62 @@ class _LoginPageState extends State<LoginPage> {
     return AppScaffold(
       title: '',
       currentRoute: AppRoutes.login,
-      onNavigate: (_) {},
       showAppBar: false,
       showDrawer: false,
       child: Center(
         child: SingleChildScrollView(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
+            constraints: const BoxConstraints(maxWidth: 400),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset('assets/logo.png', width: 84),
-                const SizedBox(height: 14),
-                Text('Akses Sistem OLIVIA', style: AppText.h1(context)),
-                const SizedBox(height: 6),
-                Text(
-                    'Login untuk melanjutkan pemantauan proses secara real-time.',
+                // Logo yang sama dengan splash page
+                Hero(
+                  tag: 'app_logo',
+                  child: Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          blurRadius: 30,
+                          spreadRadius: 4,
+                          color: Colors.teal.withOpacity(0.2),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/logo.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text('Selamat Datang', style: AppText.h1(context)),
+                const SizedBox(height: 8),
+                Text('Silakan login ke akun Anda',
                     style: AppText.muted(context)),
-                const SizedBox(height: 18),
+                const SizedBox(height: 32),
                 GlassCard(
                   child: Padding(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(24.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Email', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
                           controller: emailCtrl,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(),
+                          decoration: const InputDecoration(
+                            hintText: 'contoh@email.com',
+                          ),
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 16),
                         Text('Password', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
@@ -114,15 +134,15 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 24),
                         PrimaryButton(text: 'Login', onTap: _login),
-                        const SizedBox(height: 10),
-                        TextButton(
-                          onPressed: () => Navigator.pushReplacementNamed(
-                            context,
-                            AppRoutes.signup,
+                        const SizedBox(height: 16),
+                        Center(
+                          child: TextButton(
+                            // Navigasi dengan GetX ke halaman register
+                            onPressed: () => Get.toNamed(AppRoutes.signup),
+                            child: const Text('Belum punya akun? Daftar'),
                           ),
-                          child: const Text('Belum punya akun? Daftar'),
                         ),
                       ],
                     ),

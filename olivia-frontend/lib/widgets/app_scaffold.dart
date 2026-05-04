@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart'; // Tambahkan GetX
+import '../routes/app_routes.dart';
 import '../theme/app_colors.dart';
 import 'gradient_background.dart';
 import 'app_drawer.dart';
@@ -6,7 +8,6 @@ import 'app_drawer.dart';
 class AppScaffold extends StatelessWidget {
   final String title;
   final String currentRoute;
-  final void Function(String route) onNavigate;
   final Widget child;
   final bool showAppBar;
   final bool showDrawer;
@@ -17,57 +18,55 @@ class AppScaffold extends StatelessWidget {
     super.key,
     required this.title,
     required this.currentRoute,
-    required this.onNavigate,
     required this.child,
     this.showAppBar = true,
     this.showDrawer = true,
     this.actions,
     this.floatingActionButton,
+    // onNavigate dihapus karena kita akan pakai GetX langsung di dalam sini
   });
-
-  void _safeGo(BuildContext context, String route) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!context.mounted) return;
-      onNavigate(route);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
+        // Drawer menggunakan Get.offAllNamed agar stack bersih saat pindah menu utama
         drawer: showDrawer
             ? AppDrawer(
                 currentRoute: currentRoute,
-                onNavigate: (r) => _safeGo(context, r),
+                onNavigate: (r) => Get.offAllNamed(r),
               )
             : null,
         appBar: showAppBar
             ? AppBar(
                 title: Text(title,
                     style: const TextStyle(fontWeight: FontWeight.w900)),
+                centerTitle: true,
                 leading: showDrawer
                     ? Builder(
                         builder: (ctx) => IconButton(
                           icon: const Icon(Icons.menu_rounded),
                           onPressed: () => Scaffold.of(ctx).openDrawer(),
-                          tooltip: "Menu",
                         ),
                       )
-                    : null,
+                    : IconButton(
+                        // Jika drawer mati, munculkan tombol back otomatis
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                        onPressed: () => Get.back(),
+                      ),
                 actions: [
+                  // Gunakan rute dari AppRoutes, jangan diketik manual "/notifikasi"
                   IconButton(
                     icon: const Icon(Icons.notifications_none_rounded),
-                    onPressed: () => _safeGo(context, "/notifikasi"),
+                    onPressed: () => Get.toNamed(AppRoutes.notifikasi),
                     tooltip: "Notifikasi",
                   ),
                   IconButton(
                     icon: const Icon(Icons.person_outline_rounded),
-                    onPressed: () => _safeGo(context, "/profile"),
+                    onPressed: () => Get.toNamed(AppRoutes.profile),
                     tooltip: "Profile",
                   ),
-                  const SizedBox(width: 6),
                   if (actions != null) ...actions!,
                   const SizedBox(width: 6),
                 ],

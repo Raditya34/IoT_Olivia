@@ -1,54 +1,34 @@
 import 'package:mqtt_client/mqtt_client.dart';
-import 'package:mqtt_client/mqtt_browser_client.dart';
+import 'package:mqtt_client/mqtt_server_client.dart';
+import '../config/constants.dart';
 
 class MqttService {
-  late MqttBrowserClient client;
-
-  Function(String topic, String message)? onMessage;
+  late MqttServerClient client;
 
   Future<void> connect() async {
-    client = MqttBrowserClient(
-      'wss://test.mosquitto.org:8081/mqtt',
-      'flutter_olivia_${DateTime.now().millisecondsSinceEpoch}',
-    );
+    client = MqttServerClient(AppConfig.mqttHost,
+        'flutter_client_${DateTime.now().millisecondsSinceEpoch}');
+    client.port = AppConfig.mqttPort;
+    client.logging(on: false);
+    client.keepAlivePeriod = 20;
 
-    client.keepAlivePeriod = 30;
-    client.logging(on: true);
+    final connMess = MqttConnectMessage()
+        .withClientIdentifier(
+            'flutter_client_${DateTime.now().millisecondsSinceEpoch}')
+        .authenticateAs(AppConfig.mqttUser, AppConfig.mqttPass)
+        .startClean()
+        .withWillQos(MqttQos.atMostOnce);
+    client.connectionMessage = connMess;
 
-    client.onConnected = () => print('MQTT Connected');
-    client.onDisconnected = () => print('MQTT Disconnected');
+    try {
+      await client.connect();
+      print('MQTT Berhasil Terhubung!');
 
-    final connMessage =
-        MqttConnectMessage().startClean().withWillQos(MqttQos.atLeastOnce);
-
-    client.connectionMessage = connMessage;
-
-    await client.connect();
-
-    client.updates!.listen((events) {
-      final recMess = events[0].payload as MqttPublishMessage;
-      final payload =
-          MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
-
-      onMessage?.call(events[0].topic, payload);
-    });
-  }
-
-  void subscribe(String topic) {
-    client.subscribe(topic, MqttQos.atMostOnce);
-  }
-
-  void publish(String topic, String message) {
-    final builder = MqttClientPayloadBuilder();
-    builder.addString(message);
-    client.publishMessage(
-      topic,
-      MqttQos.atLeastOnce,
-      builder.payload!,
-    );
-  }
-
-  void disconnect() {
-    client.disconnect();
+      // Subscribe ke semua topik olivia
+      client.subscribe('olivia/+', MqttQos.atMostOnce);
+    } catch (e) {
+      print('MQTT Gagal: $e');
+      client.disconnect();
+    }
   }
 }
