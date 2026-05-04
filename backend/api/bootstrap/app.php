@@ -4,7 +4,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
-use Illuminate\Auth\Middleware\Authenticate; // ✅ TAMBAH INI
+use Illuminate\Auth\Middleware\Authenticate;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,16 +18,19 @@ return Application::configure(basePath: dirname(__DIR__))
         // ✅ Global: aktifkan CORS
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
 
-        // ✅ FIX: Jangan redirect ke route('login') untuk request API/JSON
+        // ✅ EXCLUDE CSRF: Izinkan EMQX POST data tanpa token CSRF
+        $middleware->validateCsrfTokens(except: [
+            'api/esp1/*',
+            'api/esp2/*',
+            'api/esp3/*',
+        ]);
+
+        // ✅ FIX: Jangan redirect ke login jika unauthorized (khusus API)
         Authenticate::redirectUsing(function ($request) {
             return $request->expectsJson() ? null : null;
-            // kalau kamu suatu saat punya web login, bisa ganti jadi:
-            // return $request->expectsJson() ? null : route('login');
         });
 
-        // ✅ API group middleware
         $middleware->api(append: [
-            // NOTE: ini untuk SPA (cookie-based). Untuk Flutter token-based, bisa dimatikan.
             EnsureFrontendRequestsAreStateful::class,
         ]);
 
