@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:get/get.dart';
+
 import '../../routes/app_routes.dart';
+import '../../services/auth_service.dart';
+import '../../theme/app_text.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/primary_button.dart';
-import '../../theme/app_text.dart';
-import '../../services/auth_service.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -20,9 +21,22 @@ class _SignupPageState extends State<SignupPage> {
   final passCtrl = TextEditingController();
 
   bool obscure = true;
+  bool isLoading = false;
+
+  @override
+  void dispose() {
+    nameCtrl.dispose();
+    emailCtrl.dispose();
+    passCtrl.dispose();
+    super.dispose();
+  }
 
   bool isValidEmail(String email) {
     return RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email);
+  }
+
+  bool isValidName(String name) {
+    return name.length >= 3;
   }
 
   Future<void> _signup() async {
@@ -30,50 +44,76 @@ class _SignupPageState extends State<SignupPage> {
     final email = emailCtrl.text.trim();
     final pass = passCtrl.text.trim();
 
+    // Validasi input kosong
     if (name.isEmpty || email.isEmpty || pass.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Semua field wajib diisi")),
-      );
+      _showErrorSnackBar("Semua field wajib diisi");
       return;
     }
+
+    // Validasi nama minimal 3 karakter
+    if (!isValidName(name)) {
+      _showErrorSnackBar("Nama minimal 3 karakter");
+      return;
+    }
+
+    // Validasi format email
     if (!isValidEmail(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Format email tidak valid")),
-      );
+      _showErrorSnackBar("Format email tidak valid");
       return;
     }
+
+    // Validasi panjang password
     if (pass.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password minimal 6 karakter")),
-      );
+      _showErrorSnackBar("Password minimal 6 karakter");
       return;
     }
+
+    setState(() => isLoading = true);
 
     try {
-      await AuthService().register(name, email, pass);
+      final authService = AuthService();
+      await authService.register(name, email, pass).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw Exception('Connection timeout'),
+          );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Registrasi berhasil, silakan login")),
-      );
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
-    } catch (e) {
+      _showSuccessSnackBar("Registrasi berhasil, silakan login");
+
+      // Delay sebelum navigasi
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Navigasi ke login dengan GetX
+      Get.offAllNamed(AppRoutes.login);
+    } on Exception catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+      final errorMsg = e.toString().replaceFirst('Exception: ', '');
+      _showErrorSnackBar(errorMsg);
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
-    // ✅ SIMPAN (sementara)
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_name', name);
-    await prefs.setString('user_email', email);
-    await prefs.setString('user_password', pass);
+  }
 
-    if (!mounted) return;
+  void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Registrasi berhasil, silakan login")),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade600,
+        duration: const Duration(seconds: 3),
+      ),
     );
-    Navigator.pushReplacementNamed(context, AppRoutes.login);
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green.shade600,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -89,64 +129,105 @@ class _SignupPageState extends State<SignupPage> {
             constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
               children: [
-                Image.asset('assets/logo.png', width: 84),
+                // Logo
+                Image.asset(
+                  'assets/logo.png',
+                  width: 84,
+                  fit: BoxFit.contain,
+                ),
                 const SizedBox(height: 14),
+
+                // Heading
                 Text('Create Account', style: AppText.h1(context)),
                 const SizedBox(height: 6),
-                Text('Daftar untuk mulai menggunakan OLIVIA.',
-                    style: AppText.muted(context)),
+                Text(
+                  'Daftar untuk mulai menggunakan OLIVIA.',
+                  style: AppText.muted(context),
+                ),
                 const SizedBox(height: 18),
+
+                // Form Card
                 GlassCard(
                   child: Padding(
                     padding: const EdgeInsets.all(18),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('Nama Lengkap', style: AppText.body(context)),
+                        // Nama Lengkap Field
+                        Text(
+                          'Nama Lengkap',
+                          style: AppText.body(context),
+                        ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: nameCtrl,
-                          decoration: const InputDecoration(
+                          enabled: !isLoading,
+                          decoration: InputDecoration(
                             hintText: 'Nama kamu',
+                            prefixIcon: const Icon(Icons.person_outline),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
+
+                        // Email Field
                         Text('Email', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
                           controller: emailCtrl,
+                          enabled: !isLoading,
                           keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'nama@email.com',
+                            prefixIcon: const Icon(Icons.email_outlined),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
+
+                        // Password Field
                         Text('Password', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
                           controller: passCtrl,
+                          enabled: !isLoading,
                           obscureText: obscure,
                           decoration: InputDecoration(
                             hintText: 'Minimal 6 karakter',
+                            prefixIcon: const Icon(Icons.lock_outlined),
                             suffixIcon: IconButton(
-                              onPressed: () =>
-                                  setState(() => obscure = !obscure),
+                              onPressed: !isLoading
+                                  ? () => setState(() => obscure = !obscure)
+                                  : null,
                               icon: Icon(
                                 obscure
                                     ? Icons.visibility_off
                                     : Icons.visibility,
                               ),
                             ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
-                        PrimaryButton(text: 'Daftar', onTap: _signup),
+
+                        // Sign Up Button
+                        PrimaryButton(
+                          text: isLoading ? 'Memproses...' : 'Daftar',
+                          onTap: isLoading ? null : _signup,
+                        ),
                         const SizedBox(height: 10),
+
+                        // Login Link
                         TextButton(
-                          onPressed: () => Navigator.pushReplacementNamed(
-                            context,
-                            AppRoutes.login,
-                          ),
+                          onPressed: isLoading
+                              ? null
+                              : () => Get.offAllNamed(AppRoutes.login),
                           child: const Text('Sudah punya akun? Login'),
                         ),
                       ],

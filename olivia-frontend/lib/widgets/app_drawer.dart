@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:get/get.dart';
 
 import '../routes/app_routes.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../storage/auth_storage.dart';
 
 class AppDrawer extends StatelessWidget {
   final String currentRoute;
@@ -16,17 +17,17 @@ class AppDrawer extends StatelessWidget {
   });
 
   Future<void> _logout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('logged_in', false);
-    if (!context.mounted) return;
-    Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (r) => false);
+    // Gunakan AuthStorage agar konsisten
+    await AuthStorage.clear();
+    // Navigasi menggunakan GetX, menghapus semua riwayat halaman sebelumnya
+    Get.offAllNamed(AppRoutes.login);
   }
 
   void _safeNav(BuildContext context, String route) {
-    // close drawer dulu
+    // Tutup drawer terlebih dahulu
     Navigator.pop(context);
 
-    // push di frame berikutnya (anti _debugLocked & anti blank)
+    // Pindah halaman di frame berikutnya agar transisi mulus
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
       if (route != currentRoute) onNavigate(route);
@@ -43,50 +44,48 @@ class AppDrawer extends StatelessWidget {
             const SizedBox(height: 10),
             Expanded(
               child: ListView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                physics: const BouncingScrollPhysics(),
                 children: [
                   _item(
                     context,
-                    icon: Icons.home_rounded,
+                    icon: Icons.dashboard_rounded,
                     title: 'Dashboard',
-                    route: AppRoutes.dashboard,
+                    selected: currentRoute == AppRoutes.dashboard,
                     onTap: () => _safeNav(context, AppRoutes.dashboard),
                   ),
                   _item(
                     context,
+                    icon: Icons.person_outline_rounded,
+                    title: 'Profil',
+                    selected: currentRoute == AppRoutes.profile,
+                    onTap: () => _safeNav(context, AppRoutes.profile),
+                  ),
+                  _item(
+                    context,
                     icon: Icons.history_rounded,
-                    title: 'History',
-                    route: AppRoutes.history,
+                    title: 'Riwayat',
+                    selected: currentRoute == AppRoutes.history,
                     onTap: () => _safeNav(context, AppRoutes.history),
                   ),
                   _item(
                     context,
-                    icon: Icons.info_rounded,
-                    title: 'Info',
-                    route: AppRoutes.info,
+                    icon: Icons.info_outline_rounded,
+                    title: 'Informasi Sistem',
+                    selected: currentRoute == AppRoutes.info,
                     onTap: () => _safeNav(context, AppRoutes.info),
                   ),
-                  const SizedBox(height: 14),
-                  const Divider(color: AppColors.divider),
-                  const SizedBox(height: 8),
-                  _item(
-                    context,
-                    icon: Icons.person_rounded,
-                    title: 'Profile',
-                    route: AppRoutes.profile,
-                    onTap: () => _safeNav(context, AppRoutes.profile),
-                  ),
-                  _action(
-                    context,
-                    icon: Icons.logout_rounded,
-                    title: 'Logout',
-                    onTap: () async {
-                      Navigator.pop(context);
-                      await _logout(context);
-                    },
-                  ),
                 ],
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: _action(
+                context,
+                icon: Icons.logout_rounded,
+                title: 'Keluar',
+                onTap: () => _logout(context),
               ),
             ),
           ],
@@ -97,38 +96,26 @@ class AppDrawer extends StatelessWidget {
 
   Widget _header(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: const Border(bottom: BorderSide(color: AppColors.border)),
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 30, 20, 20),
+      alignment: Alignment.centerLeft,
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.background,
-              border: Border.all(color: AppColors.border),
+              gradient: AppColors.accentGradient,
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Image.asset('assets/logo.png', fit: BoxFit.contain),
-            ),
+            child: const Icon(Icons.water_drop_rounded,
+                color: Colors.white, size: 28),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('OLIVIA', style: AppText.h2(context)),
-                const SizedBox(height: 2),
-                Text('Oil Filtration Automation',
-                    style: AppText.caption(context)),
-              ],
-            ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('OLIVIA', style: AppText.h1(context)),
+              Text('Filtration System', style: AppText.slogan(context)),
+            ],
           ),
         ],
       ),
@@ -139,13 +126,11 @@ class AppDrawer extends StatelessWidget {
     BuildContext context, {
     required IconData icon,
     required String title,
-    required String route,
+    required bool selected,
     required VoidCallback onTap,
   }) {
-    final selected = currentRoute == route;
-
     return Material(
-      color: selected ? AppColors.teal.withOpacity(0.10) : Colors.transparent,
+      color: selected ? AppColors.teal.withOpacity(0.08) : Colors.transparent,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -190,7 +175,13 @@ class AppDrawer extends StatelessWidget {
             children: [
               Icon(icon, color: AppColors.textMuted),
               const SizedBox(width: 12),
-              Expanded(child: Text(title, style: AppText.body(context))),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppText.body(context)
+                      .copyWith(color: AppColors.textMuted),
+                ),
+              ),
             ],
           ),
         ),

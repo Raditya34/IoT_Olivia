@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:get/get.dart'; // Tambahkan import GetX
 
 import '../../routes/app_routes.dart';
-import '../../services/auth_service.dart';
-import '../../theme/app_text.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/primary_button.dart';
+import '../../theme/app_text.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,14 +19,6 @@ class _LoginPageState extends State<LoginPage> {
   final passCtrl = TextEditingController();
 
   bool obscure = true;
-  bool isLoading = false;
-
-  @override
-  void dispose() {
-    emailCtrl.dispose();
-    passCtrl.dispose();
-    super.dispose();
-  }
 
   bool isValidEmail(String email) {
     return RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email);
@@ -37,69 +28,31 @@ class _LoginPageState extends State<LoginPage> {
     final email = emailCtrl.text.trim();
     final pass = passCtrl.text.trim();
 
-    // Validasi input kosong
     if (email.isEmpty || pass.isEmpty) {
-      _showErrorSnackBar("Email dan password wajib diisi");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Email dan password wajib diisi")),
+      );
       return;
     }
-
-    // Validasi format email
     if (!isValidEmail(email)) {
-      _showErrorSnackBar("Format email tidak valid");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Format email tidak valid")),
+      );
       return;
     }
-
-    // Validasi panjang password
     if (pass.length < 6) {
-      _showErrorSnackBar("Password minimal 6 karakter");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Password minimal 6 karakter")),
+      );
       return;
     }
 
-    setState(() => isLoading = true);
+    // Simulasi respons (sesuaikan jika Anda punya AuthService sungguhan)
+    // final authService = AuthService();
+    // final response = await authService.login(email, pass);
 
-    try {
-      final authService = AuthService();
-      await authService.login(email, pass).timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw Exception('Connection timeout'),
-          );
-
-      // Token sudah disimpan oleh AuthService
-      if (!mounted) return;
-      _showSuccessSnackBar("Login berhasil");
-
-      // Navigasi ke dashboard dengan clear stack
-      await Future.delayed(const Duration(milliseconds: 500));
-      Get.offAllNamed(AppRoutes.dashboard);
-    } on Exception catch (e) {
-      if (!mounted) return;
-      final errorMsg = e.toString().replaceFirst('Exception: ', '');
-      _showErrorSnackBar(errorMsg);
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade600,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green.shade600,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    // Anggap login berhasil (Hapus blok if-else ini jika pakai authService di atas)
+    Get.offAllNamed(AppRoutes.dashboard);
   }
 
   @override
@@ -116,7 +69,7 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo dengan Hero animation
+                // Logo yang sama dengan splash page
                 Hero(
                   tag: 'app_logo',
                   child: Container(
@@ -145,79 +98,49 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 24),
                 Text('Selamat Datang', style: AppText.h1(context)),
                 const SizedBox(height: 8),
-                Text(
-                  'Silakan login ke akun Anda',
-                  style: AppText.muted(context),
-                ),
+                Text('Silakan login ke akun Anda',
+                    style: AppText.muted(context)),
                 const SizedBox(height: 32),
-
-                // Form Card
                 GlassCard(
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Email Field
                         Text('Email', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
                           controller: emailCtrl,
-                          enabled: !isLoading,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: InputDecoration(
+                          decoration: const InputDecoration(
                             hintText: 'contoh@email.com',
-                            prefixIcon: const Icon(Icons.email_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
-
-                        // Password Field
                         Text('Password', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
                           controller: passCtrl,
-                          enabled: !isLoading,
                           obscureText: obscure,
                           decoration: InputDecoration(
                             hintText: 'Minimal 6 karakter',
-                            prefixIcon: const Icon(Icons.lock_outlined),
                             suffixIcon: IconButton(
-                              onPressed: !isLoading
-                                  ? () => setState(() => obscure = !obscure)
-                                  : null,
+                              onPressed: () =>
+                                  setState(() => obscure = !obscure),
                               icon: Icon(
                                 obscure
                                     ? Icons.visibility_off
                                     : Icons.visibility,
                               ),
                             ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
                           ),
                         ),
                         const SizedBox(height: 24),
-
-                        // Login Button
-                        SizedBox(
-                          width: double.infinity,
-                          child: PrimaryButton(
-                            text: isLoading ? 'Memproses...' : 'Login',
-                            onTap: isLoading ? null : _login,
-                          ),
-                        ),
+                        PrimaryButton(text: 'Login', onTap: _login),
                         const SizedBox(height: 16),
-
-                        // Sign Up Link
                         Center(
                           child: TextButton(
-                            onPressed: isLoading
-                                ? null
-                                : () => Get.toNamed(AppRoutes.signup),
+                            // Navigasi dengan GetX ke halaman register
+                            onPressed: () => Get.toNamed(AppRoutes.signup),
                             child: const Text('Belum punya akun? Daftar'),
                           ),
                         ),

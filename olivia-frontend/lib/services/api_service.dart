@@ -21,23 +21,30 @@ class ApiService {
     };
   }
 
-  /// 🔥 HANDLE RESPONSE (INI KUNCI AUTH V2)
-  http.Response _handleResponse(http.Response response) {
+  /// 🔥 HANDLE RESPONSE & DECODE JSON
+  dynamic _handleResponse(http.Response response) {
     if (response.statusCode == 401 || response.statusCode == 403) {
-      throw Exception('Unauthorized');
+      AuthStorage.clear(); // Hapus token jika kadaluarsa
+      throw Exception('Sesi telah habis, silakan login kembali.');
     }
 
     if (response.statusCode >= 400) {
-      throw Exception(
-        'API Error ${response.statusCode}: ${response.body}',
-      );
+      try {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ??
+            errorBody['error'] ??
+            'API Error: ${response.statusCode}');
+      } catch (e) {
+        throw Exception('Terjadi kesalahan server (${response.statusCode})');
+      }
     }
 
-    return response;
+    // Langsung kembalikan data berupa Map/List
+    return jsonDecode(response.body);
   }
 
   /// GET dengan auth
-  Future<http.Response> get(String endpoint) async {
+  Future<dynamic> get(String endpoint) async {
     final response = await http.get(
       Uri.parse('$baseUrl$endpoint'),
       headers: await _authHeaders(),
@@ -47,10 +54,7 @@ class ApiService {
   }
 
   /// POST dengan auth
-  Future<http.Response> post(
-    String endpoint,
-    Map<String, dynamic> body,
-  ) async {
+  Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
     final response = await http.post(
       Uri.parse('$baseUrl$endpoint'),
       headers: await _authHeaders(),
@@ -61,10 +65,7 @@ class ApiService {
   }
 
   /// POST TANPA auth (login / register)
-  Future<http.Response> postPublic(
-    String endpoint,
-    Map<String, dynamic> body,
-  ) async {
+  Future<dynamic> postPublic(String endpoint, Map<String, dynamic> body) async {
     final response = await http.post(
       Uri.parse('$baseUrl$endpoint'),
       headers: {
@@ -75,11 +76,16 @@ class ApiService {
     );
 
     if (response.statusCode >= 400) {
-      throw Exception(
-        'Public API Error ${response.statusCode}: ${response.body}',
-      );
+      try {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ??
+            errorBody['error'] ??
+            'API Error: ${response.statusCode}');
+      } catch (e) {
+        throw Exception('Gagal menghubungi server (${response.statusCode})');
+      }
     }
 
-    return response;
+    return jsonDecode(response.body);
   }
 }

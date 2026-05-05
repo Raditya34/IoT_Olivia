@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../routes/app_routes.dart';
 
 class ProcessNavbar extends StatelessWidget {
   final int currentIndex;
@@ -6,21 +8,22 @@ class ProcessNavbar extends StatelessWidget {
   const ProcessNavbar({super.key, required this.currentIndex});
 
   void _onTap(BuildContext context, int index) {
+    // Menggunakan Get.offNamed agar tidak menumpuk stack memori
     switch (index) {
       case 0:
-        Navigator.pushReplacementNamed(context, '/arang');
+        Get.offNamed(AppRoutes.arang);
         break;
       case 1:
-        Navigator.pushReplacementNamed(context, '/bleaching');
+        Get.offNamed(AppRoutes.bleaching);
         break;
       case 2:
-        Navigator.pushReplacementNamed(context, '/filtrasi');
+        Get.offNamed(AppRoutes.filtrasi);
         break;
       case 3:
-        Navigator.pushReplacementNamed(context, '/history');
+        Get.offNamed(AppRoutes.history);
         break;
       case 4:
-        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+        Get.offAllNamed(AppRoutes.dashboard);
         break;
     }
   }
@@ -48,11 +51,11 @@ class ProcessNavbar extends StatelessWidget {
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.history),
-          label: "History",
+          label: "Riwayat",
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.logout),
-          label: "Logout",
+          icon: Icon(Icons.home),
+          label: "Home",
         ),
       ],
     );
