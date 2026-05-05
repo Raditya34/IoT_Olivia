@@ -1,7 +1,11 @@
+import 'package:flutter/foundation.dart';
+
 class ApiConfig {
-  /// URL Backend Laravel di Railway.
-  /// Pastikan tidak ada tanda '/' di akhir kalimat agar tidak double saat dipanggil di ApiService.
-  static const String baseUrl = 'https://olivia-production.up.railway.app/api';
+  /// URL Backend local untuk development dan staging.
+  /// Release mode akan menggunakan URL production.
+  static final String baseUrl = kReleaseMode
+      ? 'https://olivia-production.up.railway.app/api'
+      : 'http://localhost:8000/api';
 
   /// Batas waktu tunggu koneksi (dalam milidetik).
   /// Sangat penting untuk mencegah aplikasi loading selamanya saat sinyal lemah.
