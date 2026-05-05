@@ -45,12 +45,26 @@ class ApiService {
 
   /// GET dengan auth
   Future<dynamic> get(String endpoint) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: await _authHeaders(),
-    );
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl$endpoint'),
+            headers: await _authHeaders(),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () =>
+                throw Exception('Koneksi timeout - server tidak merespons'),
+          );
 
-    return _handleResponse(response);
+      return _handleResponse(response);
+    } catch (e) {
+      if (e.toString().contains('SocketException')) {
+        throw Exception(
+            'Tidak dapat terhubung ke server - periksa koneksi internet');
+      }
+      rethrow;
+    }
   }
 
   /// POST dengan auth
@@ -66,26 +80,40 @@ class ApiService {
 
   /// POST TANPA auth (login / register)
   Future<dynamic> postPublic(String endpoint, Map<String, dynamic> body) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl$endpoint'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: jsonEncode(body),
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl$endpoint'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () =>
+                throw Exception('Koneksi timeout - server tidak merespons'),
+          );
 
-    if (response.statusCode >= 400) {
-      try {
-        final errorBody = jsonDecode(response.body);
-        throw Exception(errorBody['message'] ??
-            errorBody['error'] ??
-            'API Error: ${response.statusCode}');
-      } catch (e) {
-        throw Exception('Gagal menghubungi server (${response.statusCode})');
+      if (response.statusCode >= 400) {
+        try {
+          final errorBody = jsonDecode(response.body);
+          throw Exception(errorBody['message'] ??
+              errorBody['error'] ??
+              'API Error: ${response.statusCode}');
+        } catch (e) {
+          throw Exception('Gagal menghubungi server (${response.statusCode})');
+        }
       }
-    }
 
-    return jsonDecode(response.body);
+      return jsonDecode(response.body);
+    } catch (e) {
+      if (e.toString().contains('SocketException')) {
+        throw Exception(
+            'Tidak dapat terhubung ke server - periksa koneksi internet');
+      }
+      rethrow;
+    }
   }
 }
