@@ -37,21 +37,13 @@ class _LoginPageState extends State<LoginPage> {
     final email = emailCtrl.text.trim();
     final pass = passCtrl.text.trim();
 
-    // Validasi input kosong
     if (email.isEmpty || pass.isEmpty) {
-      _showErrorSnackBar("Email dan password wajib diisi");
+      _showSnackBar("Email dan password wajib diisi", isError: true);
       return;
     }
 
-    // Validasi format email
     if (!isValidEmail(email)) {
-      _showErrorSnackBar("Format email tidak valid");
-      return;
-    }
-
-    // Validasi panjang password
-    if (pass.length < 6) {
-      _showErrorSnackBar("Password minimal 6 karakter");
+      _showSnackBar("Format email tidak valid", isError: true);
       return;
     }
 
@@ -60,45 +52,33 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final authService = AuthService();
       await authService.login(email, pass).timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw Exception('Connection timeout'),
+            const Duration(seconds: 20),
+            onTimeout: () => throw Exception('Koneksi timeout, coba lagi.'),
           );
 
-      // Token sudah disimpan oleh AuthService
       if (!mounted) return;
-      _showSuccessSnackBar("Login berhasil");
+      _showSnackBar("Login berhasil", isError: false);
 
-      // Navigasi ke dashboard dengan clear stack
       await Future.delayed(const Duration(milliseconds: 500));
       Get.offAllNamed(AppRoutes.dashboard);
-    } on Exception catch (e) {
+    } catch (e) {
       if (!mounted) return;
-      final errorMsg = e.toString().replaceFirst('Exception: ', '');
-      _showErrorSnackBar(errorMsg);
+      _showSnackBar(e.toString().replaceFirst('Exception: ', ''),
+          isError: true);
     } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade600,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green.shade600,
-        duration: const Duration(seconds: 2),
-      ),
+  void _showSnackBar(String message, {bool isError = false}) {
+    Get.snackbar(
+      isError ? "Ups!" : "Sukses",
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor:
+          isError ? Colors.red.withOpacity(0.8) : Colors.green.withOpacity(0.8),
+      colorText: Colors.white,
+      margin: const EdgeInsets.all(16),
     );
   }
 
@@ -111,54 +91,36 @@ class _LoginPageState extends State<LoginPage> {
       showDrawer: false,
       child: Center(
         child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo dengan Hero animation
                 Hero(
                   tag: 'app_logo',
                   child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
+                    width: 100,
+                    height: 100,
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          blurRadius: 30,
-                          spreadRadius: 4,
-                          color: Colors.teal.withOpacity(0.2),
-                        ),
-                      ],
                     ),
-                    padding: const EdgeInsets.all(16),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/logo.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Image.asset('assets/logo.png', fit: BoxFit.contain),
                   ),
                 ),
                 const SizedBox(height: 24),
                 Text('Selamat Datang', style: AppText.h1(context)),
-                const SizedBox(height: 8),
-                Text(
-                  'Silakan login ke akun Anda',
-                  style: AppText.muted(context),
-                ),
+                Text('Silakan login ke akun Anda',
+                    style: AppText.muted(context)),
                 const SizedBox(height: 32),
-
-                // Form Card
                 GlassCard(
                   child: Padding(
-                    padding: const EdgeInsets.all(24.0),
+                    padding: const EdgeInsets.all(20.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Email Field
                         Text('Email', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
@@ -169,13 +131,10 @@ class _LoginPageState extends State<LoginPage> {
                             hintText: 'contoh@email.com',
                             prefixIcon: const Icon(Icons.email_outlined),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                         const SizedBox(height: 16),
-
-                        // Password Field
                         Text('Password', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
@@ -186,23 +145,17 @@ class _LoginPageState extends State<LoginPage> {
                             hintText: 'Minimal 6 karakter',
                             prefixIcon: const Icon(Icons.lock_outlined),
                             suffixIcon: IconButton(
-                              onPressed: !isLoading
-                                  ? () => setState(() => obscure = !obscure)
-                                  : null,
-                              icon: Icon(
-                                obscure
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                              ),
+                              onPressed: () =>
+                                  setState(() => obscure = !obscure),
+                              icon: Icon(obscure
+                                  ? Icons.visibility_off
+                                  : Icons.visibility),
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                         const SizedBox(height: 24),
-
-                        // Login Button
                         SizedBox(
                           width: double.infinity,
                           child: PrimaryButton(
@@ -211,8 +164,6 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 16),
-
-                        // Sign Up Link
                         Center(
                           child: TextButton(
                             onPressed: isLoading

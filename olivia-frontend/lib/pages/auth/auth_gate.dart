@@ -21,7 +21,7 @@ class _AuthGateState extends State<AuthGate> {
 
   Future<void> _redirect() async {
     // Delay kecil untuk memastikan app sudah fully initialized
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 800));
 
     try {
       final token = await AuthStorage.getToken();
@@ -42,6 +42,8 @@ class _AuthGateState extends State<AuthGate> {
       // Jika response sukses, arahkan ke dashboard
       if (response != null) {
         Get.offAllNamed(AppRoutes.dashboard);
+      } else {
+        throw Exception('Unauthorized');
       }
     } catch (e) {
       // Token tidak valid atau API error, clear storage dan ke login
@@ -71,12 +73,13 @@ class _AuthGateState extends State<AuthGate> {
               CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
               ),
-              SizedBox(height: 16),
+              SizedBox(height: 24),
               Text(
                 'Memverifikasi akun...',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],

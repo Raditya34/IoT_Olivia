@@ -6,90 +6,103 @@ use Illuminate\Console\Command;
 use PhpMqtt\Client\MqttClient;
 use PhpMqtt\Client\ConnectionSettings;
 use App\Models\Esp1Arang;
+use App\Models\Esp2Bleaching;
+use App\Models\Esp3Validasi;
 
 class MqttSubscribe extends Command
 {
+    // Nama command yang dijalankan di terminal: php artisan mqtt:subscribe
     protected $signature = 'mqtt:subscribe';
-    protected $description = 'Mendengarkan data dari EMQX MQTT Broker';
+    protected $description = 'Mendengarkan data dari EMQX MQTT Broker untuk 3 Unit ESP32';
 
     public function handle()
     {
-        $server   = env('MQTT_HOST', 'localhost');
+        // Mengambil setting dari .env
+        $server   = env('MQTT_HOST');
         $port     = (int) env('MQTT_PORT', 1883);
-        $clientId = env('MQTT_CLIENT_ID', 'laravel_client') . '_' . uniqid();
+        $clientId = env('MQTT_CLIENT_ID', 'laravel_subscriber') . '_' . uniqid();
         $username = env('MQTT_USERNAME');
         $password = env('MQTT_PASSWORD');
 
         $mqtt = new MqttClient($server, $port, $clientId, MqttClient::MQTT_3_1_1);
 
         $settings = (new ConnectionSettings)
-            ->setUsername($username === 'null' ? null : $username)
-            ->setPassword($password === 'null' ? null : $password)
+            ->setUsername($username)
+            ->setPassword($password)
             ->setKeepAliveInterval(60)
             ->setConnectTimeout(10);
 
-        $this->info("Menghubungkan ke broker MQTT di $server:$port...");
+        $this->info("Menghubungkan ke EMQX Cloud di $server:$port...");
 
         try {
             $mqtt->connect($settings, true);
-            $this->info("Berhasil terhubung ke EMQX!");
+            $this->info("✅ Berhasil Terhubung! Menunggu data telemetry...");
         } catch (\Exception $e) {
-            $this->error("Gagal terhubung: " . $e->getMessage());
+            $this->error("❌ Gagal terhubung: " . $e->getMessage());
             return;
         }
 
-        // --- BAGIAN YANG DITAMBAHKAN MULAI DISINI ---
-
-        $this->info("Sedang menunggu data dari ESP1, ESP2, dan ESP3...");
-
-        // Subscribe ke semua topik di bawah 'olivia/#'
-        // Tanda '#' adalah wildcard yang artinya "dengarkan semua yang dimulai dengan olivia/"
-        $mqtt->subscribe('olivia/+', function (string $topic, string $message) {
+        // Subscribe ke topik wildcard: olivia/+/telemetry
+        // Tanda (+) berarti akan menangkap OLIVIA-01, OLIVIA-02, dan OLIVIA-03
+        $mqtt->subscribe('olivia/+/telemetry', function (string $topic, string $message) {
             $this->info("Pesan diterima di [$topic]: $message");
-            $data = json_decode($message, true);
 
+            // Ambil nama device (OLIVIA-01, dll) dari nama topik
+            $topicParts = explode('/', $topic);
+            $deviceCode = $topicParts[1] ?? 'UNKNOWN';
+
+            $data = json_decode($message, true);
             if (!$data) {
-                $this->error("Format JSON tidak valid!");
+                $this->error("Payload bukan JSON yang valid!");
                 return;
             }
 
             try {
-                switch ($topic) {
-                    case 'olivia/esp1':
-                        \App\Models\Esp1Arang::create([
-                            'suhu' => $data['suhu'] ?? 0,
+                // LOGIKA PEMISAHAN TABEL (MODULAR)
+                switch ($deviceCode) {
+                    case 'OLIVIA-01':
+                        Esp1Arang::create([
+                            'suhu'   => $data['suhu'] ?? 0,
                             'volume' => $data['volume'] ?? 0
                         ]);
-                        $this->info("✓ Data ESP1 (Arang) disimpan.");
+                        $this->info("✓ Data Unit 1 (Arang) Disimpan.");
                         break;
 
-                    case 'olivia/esp2':
-                        \App\Models\Esp2Bleaching::create([
-                            'suhu' => $data['suhu'] ?? 0
+                    case 'OLIVIA-02':
+                        Esp2Bleaching::create([
+                            'suhu'          => $data['suhu'] ?? 0,
+                            'valve'         => $data['valve'] ?? false,
+                            'pompa_1'       => $data['pompa_1'] ?? false,
+                            'pompa_2'       => $data['pompa_2'] ?? false,
+                            'pompa_3'       => $data['pompa_3'] ?? false,
+                            'heater_1'      => $data['heater_1'] ?? false,
+                            'heater_2'      => $data['heater_2'] ?? false,
+                            'heater_3'      => $data['heater_3'] ?? false,
+                            'heater_4'      => $data['heater_4'] ?? false,
+                            'motor_ac_speed'=> $data['speed'] ?? 0,
                         ]);
-                        $this->info("✓ Data ESP2 (Bleaching) disimpan.");
+                        $this->info("✓ Data Unit 2 (Bleaching) Disimpan.");
                         break;
 
-                    case 'olivia/esp3':
-                        \App\Models\Esp3Validasi::create([
-                            'turbidity' => $data['turbidity'] ?? 0,
-                            'viscosity' => $data['viscosity'] ?? 0,
-                            'warna' => $data['warna'] ?? 0
+                    case 'OLIVIA-03':
+                        Esp3Validasi::create([
+                            'volume'     => $data['volume'] ?? 0,
+                            'turbidity'  => $data['turbidity'] ?? 0,
+                            'viskositas' => $data['viskositas'] ?? 0,
+                            'warna'      => $data['warna'] ?? '-',
                         ]);
-                        $this->info("✓ Data ESP3 (Validasi) disimpan.");
+                        $this->info("✓ Data Unit 3 (Validasi) Disimpan.");
                         break;
 
                     default:
-                        $this->warn("Topik tidak dikenal: $topic");
+                        $this->warn("⚠️ Perangkat tidak terdaftar: $deviceCode");
                         break;
                 }
             } catch (\Exception $e) {
-                $this->error("Gagal simpan ke DB: " . $e->getMessage());
+                $this->error("❌ Gagal simpan ke DB: " . $e->getMessage());
             }
         }, 0);
 
         $mqtt->loop(true);
-
-        // --- BAGIAN YANG DITAMBAHKAN SELESAI ---
     }
 }

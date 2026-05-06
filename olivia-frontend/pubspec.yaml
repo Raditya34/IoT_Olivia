@@ -20,7 +20,7 @@ dependencies:
   flutter_secure_storage: ^9.2.2
 
   # IoT & Storage
-  mqtt_client: ^10.3.0
+  mqtt_client: ^10.4.1
   shared_preferences: ^2.2.2
  
   # UI

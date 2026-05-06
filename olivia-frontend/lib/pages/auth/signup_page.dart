@@ -35,84 +35,55 @@ class _SignupPageState extends State<SignupPage> {
     return RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email);
   }
 
-  bool isValidName(String name) {
-    return name.length >= 3;
-  }
-
   Future<void> _signup() async {
     final name = nameCtrl.text.trim();
     final email = emailCtrl.text.trim();
     final pass = passCtrl.text.trim();
 
-    // Validasi input kosong
     if (name.isEmpty || email.isEmpty || pass.isEmpty) {
-      _showErrorSnackBar("Semua field wajib diisi");
+      _showSnackBar("Semua field wajib diisi", isError: true);
       return;
     }
 
-    // Validasi nama minimal 3 karakter
-    if (!isValidName(name)) {
-      _showErrorSnackBar("Nama minimal 3 karakter");
-      return;
-    }
-
-    // Validasi format email
     if (!isValidEmail(email)) {
-      _showErrorSnackBar("Format email tidak valid");
+      _showSnackBar("Format email tidak valid", isError: true);
       return;
     }
 
-    // Validasi panjang password
     if (pass.length < 6) {
-      _showErrorSnackBar("Password minimal 6 karakter");
+      _showSnackBar("Password minimal 6 karakter", isError: true);
       return;
     }
 
     setState(() => isLoading = true);
 
     try {
-      final authService = AuthService();
-      await authService.register(name, email, pass).timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw Exception('Connection timeout'),
+      await AuthService().register(name, email, pass).timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => throw Exception('Koneksi timeout, coba lagi.'),
           );
 
-      if (!mounted) return;
-      _showSuccessSnackBar("Registrasi berhasil, silakan login");
+      _showSnackBar("Registrasi berhasil, silakan login", isError: false);
 
-      // Delay sebelum navigasi
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Navigasi ke login dengan GetX
+      await Future.delayed(const Duration(seconds: 1));
       Get.offAllNamed(AppRoutes.login);
-    } on Exception catch (e) {
-      if (!mounted) return;
-      final errorMsg = e.toString().replaceFirst('Exception: ', '');
-      _showErrorSnackBar(errorMsg);
+    } catch (e) {
+      _showSnackBar(e.toString().replaceFirst('Exception: ', ''),
+          isError: true);
     } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade600,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green.shade600,
-        duration: const Duration(seconds: 2),
-      ),
+  void _showSnackBar(String message, {bool isError = false}) {
+    Get.snackbar(
+      isError ? "Gagal" : "Berhasil",
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor:
+          isError ? Colors.red.withOpacity(0.8) : Colors.green.withOpacity(0.8),
+      colorText: Colors.white,
+      margin: const EdgeInsets.all(16),
     );
   }
 
@@ -125,54 +96,36 @@ class _SignupPageState extends State<SignupPage> {
       showDrawer: false,
       child: Center(
         child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
+            constraints: const BoxConstraints(maxWidth: 450),
             child: Column(
               children: [
-                // Logo
-                Image.asset(
-                  'assets/logo.png',
-                  width: 84,
-                  fit: BoxFit.contain,
-                ),
-                const SizedBox(height: 14),
-
-                // Heading
-                Text('Create Account', style: AppText.h1(context)),
-                const SizedBox(height: 6),
-                Text(
-                  'Daftar untuk mulai menggunakan OLIVIA.',
-                  style: AppText.muted(context),
-                ),
-                const SizedBox(height: 18),
-
-                // Form Card
+                Image.asset('assets/logo.png', width: 80),
+                const SizedBox(height: 16),
+                Text('Buat Akun', style: AppText.h1(context)),
+                Text('Daftar untuk mulai menggunakan OLIVIA',
+                    style: AppText.muted(context)),
+                const SizedBox(height: 24),
                 GlassCard(
                   child: Padding(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Nama Lengkap Field
-                        Text(
-                          'Nama Lengkap',
-                          style: AppText.body(context),
-                        ),
+                        Text('Nama Lengkap', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
                           controller: nameCtrl,
                           enabled: !isLoading,
                           decoration: InputDecoration(
-                            hintText: 'Nama kamu',
+                            hintText: 'Masukkan nama lengkap',
                             prefixIcon: const Icon(Icons.person_outline),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
-                        const SizedBox(height: 14),
-
-                        // Email Field
+                        const SizedBox(height: 16),
                         Text('Email', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
@@ -183,13 +136,10 @@ class _SignupPageState extends State<SignupPage> {
                             hintText: 'nama@email.com',
                             prefixIcon: const Icon(Icons.email_outlined),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
-                        const SizedBox(height: 14),
-
-                        // Password Field
+                        const SizedBox(height: 16),
                         Text('Password', style: AppText.body(context)),
                         const SizedBox(height: 8),
                         TextField(
@@ -200,35 +150,27 @@ class _SignupPageState extends State<SignupPage> {
                             hintText: 'Minimal 6 karakter',
                             prefixIcon: const Icon(Icons.lock_outlined),
                             suffixIcon: IconButton(
-                              onPressed: !isLoading
-                                  ? () => setState(() => obscure = !obscure)
-                                  : null,
-                              icon: Icon(
-                                obscure
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                              ),
+                              onPressed: () =>
+                                  setState(() => obscure = !obscure),
+                              icon: Icon(obscure
+                                  ? Icons.visibility_off
+                                  : Icons.visibility),
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
-                        const SizedBox(height: 16),
-
-                        // Sign Up Button
+                        const SizedBox(height: 24),
                         PrimaryButton(
-                          text: isLoading ? 'Memproses...' : 'Daftar',
+                          text: isLoading ? 'Mendaftar...' : 'Daftar Sekarang',
                           onTap: isLoading ? null : _signup,
                         ),
-                        const SizedBox(height: 10),
-
-                        // Login Link
+                        const SizedBox(height: 12),
                         TextButton(
                           onPressed: isLoading
                               ? null
                               : () => Get.offAllNamed(AppRoutes.login),
-                          child: const Text('Sudah punya akun? Login'),
+                          child: const Text('Sudah punya akun? Login di sini'),
                         ),
                       ],
                     ),
