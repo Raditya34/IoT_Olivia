@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\api; // Pastikan folder di VS Code adalah: app/Http/Controllers/Api
+namespace App\Http\Controllers\Api; // Pastikan folder di VS Code adalah: app/Http/Controllers/Api
 
 use App\Http\Controllers\Controller;
 use App\Models\User;

@@ -22,6 +22,8 @@ return new class extends Migration {
             $table->boolean('pompa_3')->default(false);
             $table->boolean('heater_1')->default(false);
             $table->boolean('heater_2')->default(false);
+            $table->boolean('heater_3')->default(false);
+            $table->boolean('heater_4')->default(false);
             $table->integer('motor_ac_speed')->default(0);
             $table->timestamp('created_at')->useCurrent();
         });
