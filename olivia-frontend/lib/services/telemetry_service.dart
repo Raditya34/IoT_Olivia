@@ -5,10 +5,8 @@ class TelemetryService {
 
   Future<Map<String, dynamic>> fetchHistory() async {
     try {
-      // Mengambil data history dari endpoint Laravel
+      // Mengambil data history modular dari Laravel
       final res = await _api.get('/history');
-
-      // Karena ApiService sudah melakukan jsonDecode, langsung return res
       return res as Map<String, dynamic>;
     } catch (e) {
       throw Exception('Gagal ambil data history: $e');

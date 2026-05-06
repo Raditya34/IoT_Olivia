@@ -1,18 +1,14 @@
 import 'package:flutter/foundation.dart';
 
 class ApiConfig {
-  /// URL Backend local untuk development dan staging.
-  /// Release mode akan menggunakan URL production.
+  /// URL Backend Production di Railway
   static final String baseUrl = kReleaseMode
-      ? 'https://olivia-production.up.railway.app/api'
-      : 'http://localhost:8000/api';
+      ? 'https://iotolivia-production.up.railway.app/api'
+      : 'https://iotolivia-production.up.railway.app/api'; // Diset sama agar saat debug data tetap muncul
 
-  /// Batas waktu tunggu koneksi (dalam milidetik).
-  /// Sangat penting untuk mencegah aplikasi loading selamanya saat sinyal lemah.
-  static const int connectTimeout = 15000; // 15 detik
-  static const int receiveTimeout = 15000; // 15 detik
+  static const int connectTimeout = 15000;
+  static const int receiveTimeout = 15000;
 
-  /// Header standar untuk permintaan API
   static Map<String, String> get headers => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',

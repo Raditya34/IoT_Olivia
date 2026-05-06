@@ -18,6 +18,7 @@ class BleachingPage extends StatelessWidget {
       title: 'Proses Bleaching',
       currentRoute: AppRoutes.bleaching,
       child: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
           _hero(context),
           const SizedBox(height: 18),
@@ -28,7 +29,34 @@ class BleachingPage extends StatelessWidget {
                 icon: Icons.thermostat_auto_rounded,
                 spark: controller.sparkBleachTemp,
               )),
+          const SizedBox(height: 18),
+          Text('Status Aktuator (Unit 2)', style: AppText.h3(context)),
+          const SizedBox(height: 10),
+          Obx(() => Column(
+                children: [
+                  _statusTile('Solenoid Valve', controller.bleachValve.value),
+                  _statusTile('Pompa 1', controller.bleachP1.value),
+                  _statusTile('Heater 1', controller.bleachH1.value),
+                  _statusTile('Motor AC Speed', true,
+                      subtitle: "${controller.bleachSpeed.value} RPM"),
+                ],
+              )),
         ],
+      ),
+    );
+  }
+
+  Widget _statusTile(String title, bool isOn, {String? subtitle}) {
+    return Card(
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: subtitle != null ? Text(subtitle) : null,
+        trailing: Icon(
+          isOn ? Icons.check_circle_rounded : Icons.cancel_rounded,
+          color: isOn ? Colors.green : Colors.red,
+        ),
       ),
     );
   }
@@ -43,8 +71,8 @@ class BleachingPage extends StatelessWidget {
       child: Row(
         children: [
           const Icon(Icons.science_rounded, color: AppColors.teal, size: 40),
-          const SizedBox(width: 14),
-          Text('Tahap Bleaching', style: AppText.h2(context)),
+          const SizedBox(width: 15),
+          Text('Pemurnian Minyak', style: AppText.h2(context)),
         ],
       ),
     );

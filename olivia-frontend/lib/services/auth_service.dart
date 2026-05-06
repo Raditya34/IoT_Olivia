@@ -9,10 +9,9 @@ class AuthService {
         .postPublic('/auth/login', {'email': email, 'password': password});
 
     final token = data['token'] as String?;
-    if (token == null || token.isEmpty) {
-      throw Exception('Token tidak ditemukan dari server');
+    if (token != null) {
+      await AuthStorage.saveToken(token);
     }
-    await AuthStorage.saveToken(token);
   }
 
   Future<void> register(String name, String email, String password) async {
@@ -20,8 +19,7 @@ class AuthService {
         '/auth/register', {'name': name, 'email': email, 'password': password});
 
     final token = data['token'] as String?;
-    if (token != null && token.isNotEmpty) {
-      // Auto-login setelah register
+    if (token != null) {
       await AuthStorage.saveToken(token);
     }
   }

@@ -12,48 +12,38 @@ class ValidasiPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Menghubungkan ke DashboardController yang sudah ada
     final DashboardController controller = Get.find();
 
     return AppScaffold(
       title: 'Proses Validasi',
       currentRoute: AppRoutes.filtrasi,
       child: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
           _hero(context),
           const SizedBox(height: 18),
-
-          // Monitoring Sensor Real-time
           Obx(() => Wrap(
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  // Menambahkan monitoring Volume Minyak
-                  _sensorBox(context, 'Volume Minyak',
-                      controller.arangVol.value, 'L', Icons.water_drop_rounded),
+                  _sensorBox(context, 'Volume Akhir',
+                      controller.validasiVol.value, 'L', Icons.water_drop),
                   _sensorBox(context, 'Turbidity', controller.turb.value, 'NTU',
-                      Icons.blur_on_rounded),
+                      Icons.blur_on),
                   _sensorBox(context, 'Viskositas', controller.visc.value, 'cP',
-                      Icons.speed_rounded),
+                      Icons.speed),
                 ],
               )),
-          const SizedBox(height: 12),
-
-          // Kartu Deteksi Warna
+          const SizedBox(height: 18),
           Obx(() => _warnaCard(context, controller.warna.value)),
-          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  // Widget pembantu untuk kotak sensor agar rapi
   Widget _sensorBox(BuildContext context, String label, double value,
       String unit, IconData icon) {
-    // Menghitung lebar agar muat 2 kolom di layar HP
-    double width = MediaQuery.of(context).size.width;
-    double cardW = (width - 48) / 2;
-
+    double cardW = (MediaQuery.of(context).size.width - 48) / 2;
     return SizedBox(
       width: cardW,
       child: SensorCard(
@@ -83,10 +73,14 @@ class ValidasiPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: AppColors.border)),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Icon(Icons.palette_rounded, color: AppColors.teal),
-          const SizedBox(width: 12),
-          Text('Warna Deteksi: $warna', style: AppText.h3(context)),
+          Text('Hasil Warna:', style: AppText.h3(context)),
+          Text(warna,
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.teal)),
         ],
       ),
     );

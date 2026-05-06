@@ -5,24 +5,23 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/sensor_card.dart';
-import '../../state/dashboard_controller.dart';
+import '../../state/dashboard_controller.dart'; // Pastikan path controller benar
 
 class ArangPage extends StatelessWidget {
   const ArangPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Menemukan controller yang sudah di-init di Dashboard
     final DashboardController controller = Get.find();
 
     return AppScaffold(
       title: 'Proses Arang',
       currentRoute: AppRoutes.arang,
       child: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
           _hero(context),
           const SizedBox(height: 18),
-          // Obx mendengarkan perubahan data dari MQTT secara otomatis
           Obx(() => Wrap(
                 spacing: 12,
                 runSpacing: 12,
@@ -52,8 +51,7 @@ class ArangPage extends StatelessWidget {
 
   Widget _sensorWrapper(BuildContext context, String label, double value,
       String unit, IconData icon, List<double> spark) {
-    double width = MediaQuery.of(context).size.width;
-    double cardW = width < 600 ? width : (width - 60) / 2;
+    double cardW = (MediaQuery.of(context).size.width - 44) / 2;
     return SizedBox(
       width: cardW,
       child: SensorCard(
@@ -104,13 +102,15 @@ class ArangPage extends StatelessWidget {
 
   Widget _noteCard(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
       ),
-      child: const Text("Data diperbarui otomatis dari ESP1 (Arang)."),
+      child: const Text("Data ini diambil langsung dari Unit ESP1 (Arang).",
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: Colors.grey)),
     );
   }
 }
