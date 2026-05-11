@@ -1,5 +1,5 @@
 <?php
-
+// app/Console/Commands/MqttSubscribe.php
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
@@ -11,18 +11,19 @@ use App\Models\Esp3Validasi;
 
 class MqttSubscribe extends Command
 {
-    // Nama command yang dijalankan di terminal: php artisan mqtt:subscribe
-    protected $signature = 'mqtt:subscribe';
-    protected $description = 'Mendengarkan data dari EMQX MQTT Broker untuk 3 Unit ESP32';
+    protected $signature   = 'mqtt:subscribe';
+    protected $description = 'Listen data dari EMQX Cloud untuk 3 ESP32';
 
     public function handle()
     {
-        // Mengambil setting dari .env
         $server   = env('MQTT_HOST');
-        $port     = (int) env('MQTT_PORT', 1883);
-        $clientId = env('MQTT_CLIENT_ID', 'laravel_subscriber') . '_' . uniqid();
+        $port     = (int) env('MQTT_PORT', 8883); // ✅ TLS port
+        $clientId = env('MQTT_CLIENT_ID', 'laravel_sub') . '_' . uniqid();
         $username = env('MQTT_USERNAME');
         $password = env('MQTT_PASSWORD');
+        $topic    = env('MQTT_TOPIC', 'olivia/+/telemetry');
+
+        $this->info("Menghubungkan ke $server:$port ...");
 
         $mqtt = new MqttClient($server, $port, $clientId, MqttClient::MQTT_3_1_1);
 
@@ -30,79 +31,62 @@ class MqttSubscribe extends Command
             ->setUsername($username)
             ->setPassword($password)
             ->setKeepAliveInterval(60)
-            ->setConnectTimeout(10);
-
-        $this->info("Menghubungkan ke EMQX Cloud di $server:$port...");
+            ->setConnectTimeout(15)
+            ->setUseTls(true)                  // ✅ Wajib untuk emqxsl.com
+            ->setTlsSelfSignedAllowed(false);  // ✅ Pakai cert resmi EMQX
 
         try {
             $mqtt->connect($settings, true);
-            $this->info("✅ Berhasil Terhubung! Menunggu data telemetry...");
+            $this->info("✅ Terhubung! Menunggu data dari topic: $topic");
         } catch (\Exception $e) {
-            $this->error("❌ Gagal terhubung: " . $e->getMessage());
-            return;
+            $this->error("❌ Gagal konek: " . $e->getMessage());
+            return 1;
         }
 
-        // Subscribe ke topik wildcard: olivia/+/telemetry
-        // Tanda (+) berarti akan menangkap OLIVIA-01, OLIVIA-02, dan OLIVIA-03
-        $mqtt->subscribe('olivia/+/telemetry', function (string $topic, string $message) {
-            $this->info("Pesan diterima di [$topic]: $message");
+        $mqtt->subscribe($topic, function (string $topic, string $message) {
+            $this->info("[" . now() . "] $topic => $message");
 
-            // Ambil nama device (OLIVIA-01, dll) dari nama topik
-            $topicParts = explode('/', $topic);
-            $deviceCode = $topicParts[1] ?? 'UNKNOWN';
+            $parts      = explode('/', $topic);
+            $deviceCode = $parts[1] ?? 'UNKNOWN';
+            $data       = json_decode($message, true);
 
-            $data = json_decode($message, true);
             if (!$data) {
-                $this->error("Payload bukan JSON yang valid!");
+                $this->warn("Payload tidak valid JSON: $message");
                 return;
             }
 
             try {
-                // LOGIKA PEMISAHAN TABEL (MODULAR)
-                switch ($deviceCode) {
-                    case 'OLIVIA-01':
-                        Esp1Arang::create([
-                            'suhu'   => $data['suhu'] ?? 0,
-                            'volume' => $data['volume'] ?? 0
-                        ]);
-                        $this->info("✓ Data Unit 1 (Arang) Disimpan.");
-                        break;
-
-                    case 'OLIVIA-02':
-                        Esp2Bleaching::create([
-                            'suhu'          => $data['suhu'] ?? 0,
-                            'valve'         => $data['valve'] ?? false,
-                            'pompa_1'       => $data['pompa_1'] ?? false,
-                            'pompa_2'       => $data['pompa_2'] ?? false,
-                            'pompa_3'       => $data['pompa_3'] ?? false,
-                            'heater_1'      => $data['heater_1'] ?? false,
-                            'heater_2'      => $data['heater_2'] ?? false,
-                            'heater_3'      => $data['heater_3'] ?? false,
-                            'heater_4'      => $data['heater_4'] ?? false,
-                            'motor_ac_speed'=> $data['speed'] ?? 0,
-                        ]);
-                        $this->info("✓ Data Unit 2 (Bleaching) Disimpan.");
-                        break;
-
-                    case 'OLIVIA-03':
-                        Esp3Validasi::create([
-                            'volume'     => $data['volume'] ?? 0,
-                            'turbidity'  => $data['turbidity'] ?? 0,
-                            'viskositas' => $data['viskositas'] ?? 0,
-                            'warna'      => $data['warna'] ?? '-',
-                        ]);
-                        $this->info("✓ Data Unit 3 (Validasi) Disimpan.");
-                        break;
-
-                    default:
-                        $this->warn("⚠️ Perangkat tidak terdaftar: $deviceCode");
-                        break;
-                }
+                match ($deviceCode) {
+                    'OLIVIA-01' => Esp1Arang::create([
+                        'suhu'   => $data['suhu']   ?? 0,
+                        'volume' => $data['volume'] ?? 0,
+                    ]),
+                    'OLIVIA-02' => Esp2Bleaching::create([
+                        'suhu'           => $data['suhu']    ?? 0,
+                        'valve'          => $data['valve']   ?? false,
+                        'pompa_1'        => $data['pompa_1'] ?? false,
+                        'pompa_2'        => $data['pompa_2'] ?? false,
+                        'pompa_3'        => $data['pompa_3'] ?? false,
+                        'heater_1'       => $data['heater_1'] ?? false,
+                        'heater_2'       => $data['heater_2'] ?? false,
+                        'heater_3'       => $data['heater_3'] ?? false,
+                        'heater_4'       => $data['heater_4'] ?? false,
+                        'motor_ac_speed' => $data['speed']   ?? 0,
+                    ]),
+                    'OLIVIA-03' => Esp3Validasi::create([
+                        'volume'     => $data['volume']     ?? 0,
+                        'turbidity'  => $data['turbidity']  ?? 0,
+                        'viskositas' => $data['viskositas'] ?? 0,
+                        'warna'      => $data['warna']      ?? '-',
+                    ]),
+                    default => $this->warn("⚠️ Device tidak dikenal: $deviceCode"),
+                };
+                $this->info("✓ Data $deviceCode disimpan.");
             } catch (\Exception $e) {
-                $this->error("❌ Gagal simpan ke DB: " . $e->getMessage());
+                $this->error("❌ Gagal simpan: " . $e->getMessage());
             }
         }, 0);
 
-        $mqtt->loop(true);
+        $mqtt->loop(true); // Jalan terus
     }
 }

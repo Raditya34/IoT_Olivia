@@ -1,3 +1,4 @@
+// lib/pages/dashboard/dashboard_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../routes/app_routes.dart';
@@ -6,14 +7,13 @@ import '../../theme/app_text.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/sensor_card.dart';
 import '../../widgets/progress_timeline.dart';
-import '../../state/dashboard_controller.dart'; // PERBAIKAN: Path ke folder controllers
+import '../../state/dashboard_controller.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Memastikan controller di-init di sini
     final DashboardController controller = Get.put(DashboardController());
 
     return AppScaffold(
@@ -28,21 +28,25 @@ class DashboardPage extends StatelessWidget {
             _hero(context),
             const SizedBox(height: 12),
 
-            // Kontrol On/Off Sistem
             Obx(() => _systemControl(context, controller)),
             const SizedBox(height: 12),
 
-            // Timeline Proses Aktif
             Obx(() => ProgressTimeline(
                   step: controller.progressStep.value,
                   active: controller.systemOn.value,
                 )),
             const SizedBox(height: 24),
 
-            _sectionTitle(context, 'Ringkasan Unit'),
+            _sectionTitle(context, 'Navigasi Proses'),
             const SizedBox(height: 12),
 
-            // Grid Sensor Ringkasan
+            // ✅ NAVIGASI KE HALAMAN PROSES
+            _processNavGrid(context, controller),
+            const SizedBox(height: 24),
+
+            _sectionTitle(context, 'Ringkasan Sensor'),
+            const SizedBox(height: 12),
+
             Obx(() => _sensorGrid(context, controller)),
             const SizedBox(height: 24),
 
@@ -51,6 +55,104 @@ class DashboardPage extends StatelessWidget {
 
             Obx(() => _recommendationCard(context, controller)),
             const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ SECTION BARU: Grid navigasi ke 3 halaman proses
+  Widget _processNavGrid(BuildContext context, DashboardController controller) {
+    return Column(
+      children: [
+        // Baris 1: Arang & Bleaching
+        Row(
+          children: [
+            Expanded(
+              child: Obx(() => _processCard(
+                    context,
+                    icon: Icons.local_fire_department_rounded,
+                    title: 'Proses Arang',
+                    subtitle:
+                        '${controller.arangTemp.value.toStringAsFixed(1)} °C',
+                    color: Colors.orange,
+                    onTap: () => Get.toNamed(AppRoutes.arang),
+                  )),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Obx(() => _processCard(
+                    context,
+                    icon: Icons.science_rounded,
+                    title: 'Bleaching',
+                    subtitle:
+                        '${controller.bleachTemp.value.toStringAsFixed(1)} °C',
+                    color: Colors.blue,
+                    onTap: () => Get.toNamed(AppRoutes.bleaching),
+                  )),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Baris 2: Validasi (full width)
+        Obx(() => _processCard(
+              context,
+              icon: Icons.verified_rounded,
+              title: 'Validasi Kualitas',
+              subtitle:
+                  'Turb: ${controller.turb.value.toStringAsFixed(1)} NTU  •  Warna: ${controller.warna.value}',
+              color: AppColors.teal,
+              onTap: () => Get.toNamed(AppRoutes.filtrasi),
+              fullWidth: true,
+            )),
+      ],
+    );
+  }
+
+  Widget _processCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+    bool fullWidth = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: fullWidth ? double.infinity : null,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: AppText.h3(context),
+                      overflow: TextOverflow.ellipsis),
+                  Text(subtitle,
+                      style: AppText.muted(context),
+                      overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: color.withOpacity(0.6)),
           ],
         ),
       ),
