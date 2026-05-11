@@ -44,7 +44,7 @@ class AuthController extends Controller
                 'token' => $token
             ], 201);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Jika error, tampilkan pesan aslinya agar kita bisa debug
             return response()->json([
                 'status' => 'error',

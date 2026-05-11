@@ -32,10 +32,10 @@ class User extends Authenticatable
     /**
      * Relasi ke tabel devices (jika kamu menggunakannya).
      */
-    public function devices()
-    {
-        return $this->hasMany(\App\Models\Device::class);
-    }
+    //public function devices()
+    //{
+       // return $this->hasMany(\App\Models\Device::class);
+    //}
 
     /**
      * Konfigurasi casting field database.
