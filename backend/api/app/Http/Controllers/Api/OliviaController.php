@@ -122,6 +122,8 @@ class OliviaController extends Controller
             'pompa_3' => 'required|boolean',
             'heater_1' => 'required|boolean',
             'heater_2' => 'required|boolean',
+            'heater_3' => 'required|boolean',
+            'heater_4' => 'required|boolean',
             'motor_ac_speed' => 'required|integer',
         ]);
         return response()->json(Esp2Bleaching::create($validated), 201);
