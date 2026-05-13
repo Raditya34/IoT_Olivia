@@ -21,16 +21,13 @@ class OliviaController extends Controller
         try {
             return response()->json([
                 'success' => true,
-                // Status sistem ON/OFF secara global
                 'system_status' => (bool) (MasterControl::first()->system_on ?? false),
 
-                // Data terbaru dari Unit 1
                 'arang' => Esp1Arang::latest()->first() ?: [
                     'suhu' => 0,
                     'volume' => 0
                 ],
 
-                // Data terbaru dari Unit 2
                 'bleaching' => Esp2Bleaching::latest()->first() ?: [
                     'suhu' => 0,
                     'valve' => false,
@@ -42,7 +39,6 @@ class OliviaController extends Controller
                     'motor_ac_speed' => 0
                 ],
 
-                // Data terbaru dari Unit 3
                 'validasi' => Esp3Validasi::latest()->first() ?: [
                     'volume' => 0,
                     'turbidity' => 0,
@@ -60,11 +56,9 @@ class OliviaController extends Controller
 
     /**
      * KONTROL ON/OFF DARI FLUTTER
-     * Endpoint: POST /api/control
      */
     public function updateControl(Request $request)
     {
-        // Penyesuaian agar bisa menerima 'status' (on/off) atau 'system_on' (boolean)
         $statusInput = $request->input('status');
         $systemOn = $request->has('system_on')
                     ? $request->boolean('system_on')
@@ -81,15 +75,12 @@ class OliviaController extends Controller
                 'system_on' => (bool) $control->system_on
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 
     /**
-     * AMBIL HISTORY DARI SEMUA UNIT
+     * AMBIL HISTORY UNTUK TELEMETRI
      */
     public function getHistory()
     {
@@ -100,43 +91,71 @@ class OliviaController extends Controller
                 'validasi' => Esp3Validasi::latest()->take(20)->get(),
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
+    // --- METHODS UNTUK EMQX DATA STORAGE ---
+
     public function storeEsp1(Request $request)
     {
-        $validated = $request->validate(['suhu' => 'required|numeric', 'volume' => 'required|numeric']);
-        return response()->json(Esp1Arang::create($validated), 201);
+        try {
+            // Gunakan request->all() agar lebih fleksibel terhadap format EMQX
+            $data = $request->all();
+
+            $res = Esp1Arang::create([
+                'suhu'   => $data['suhu'] ?? 0,
+                'volume' => $data['volume'] ?? 0,
+            ]);
+
+            return response()->json(['status' => 'success', 'data' => $res], 200);
+        } catch (\Exception $e) {
+            Log::error("Store ESP1 Error: " . $e->getMessage());
+            return response()->json(['status' => 'error', 'msg' => $e->getMessage()], 400);
+        }
     }
 
     public function storeEsp2(Request $request)
     {
-        $validated = $request->validate([
-            'suhu' => 'required|numeric',
-            'valve' => 'required|boolean',
-            'pompa_1' => 'required|boolean',
-            'pompa_2' => 'required|boolean',
-            'pompa_3' => 'required|boolean',
-            'heater_1' => 'required|boolean',
-            'heater_2' => 'required|boolean',
-            'heater_3' => 'required|boolean',
-            'heater_4' => 'required|boolean',
-            'motor_ac_speed' => 'required|integer',
-        ]);
-        return response()->json(Esp2Bleaching::create($validated), 201);
+        try {
+            $data = $request->all();
+
+            $res = Esp2Bleaching::create([
+                'suhu'           => $data['suhu'] ?? 0,
+                'valve'          => filter_var($data['valve'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'pompa_1'        => filter_var($data['pompa_1'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'pompa_2'        => filter_var($data['pompa_2'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'pompa_3'        => filter_var($data['pompa_3'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'heater_1'       => filter_var($data['heater_1'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'heater_2'       => filter_var($data['heater_2'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'heater_3'       => filter_var($data['heater_3'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'heater_4'       => filter_var($data['heater_4'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'motor_ac_speed' => $data['motor_ac_speed'] ?? 0,
+            ]);
+
+            return response()->json(['status' => 'success', 'data' => $res], 200);
+        } catch (\Exception $e) {
+            Log::error("Store ESP2 Error: " . $e->getMessage());
+            return response()->json(['status' => 'error'], 400);
+        }
     }
 
     public function storeEsp3(Request $request)
     {
-        $validated = $request->validate([
-            'volume' => 'required|numeric',
-            'turbidity' => 'required|numeric',
-            'viskositas' => 'required|numeric',
-            'warna' => 'required|string',
-        ]);
-        return response()->json(Esp3Validasi::create($validated), 201);
+        try {
+            $data = $request->all();
+
+            $res = Esp3Validasi::create([
+                'volume'     => $data['volume'] ?? 0,
+                'turbidity'  => $data['turbidity'] ?? 0,
+                'viskositas' => $data['viskositas'] ?? 0,
+                'warna'      => $data['warna'] ?? '-',
+            ]);
+
+            return response()->json(['status' => 'success', 'data' => $res], 200);
+        } catch (\Exception $e) {
+            Log::error("Store ESP3 Error: " . $e->getMessage());
+            return response()->json(['status' => 'error'], 400);
+        }
     }
 }
