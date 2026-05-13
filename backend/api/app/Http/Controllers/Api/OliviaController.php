@@ -64,11 +64,15 @@ class OliviaController extends Controller
      */
     public function updateControl(Request $request)
     {
-        $request->validate(['system_on' => 'required|boolean']);
+        // Penyesuaian agar bisa menerima 'status' (on/off) atau 'system_on' (boolean)
+        $statusInput = $request->input('status');
+        $systemOn = $request->has('system_on')
+                    ? $request->boolean('system_on')
+                    : ($statusInput === 'on');
 
         try {
             $control = MasterControl::first() ?: new MasterControl;
-            $control->system_on = $request->system_on;
+            $control->system_on = $systemOn;
             $control->save();
 
             return response()->json([
@@ -77,13 +81,15 @@ class OliviaController extends Controller
                 'system_on' => (bool) $control->system_on
             ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
     /**
      * AMBIL HISTORY DARI SEMUA UNIT
-     * Endpoint: GET /api/history
      */
     public function getHistory()
     {
@@ -99,8 +105,6 @@ class OliviaController extends Controller
             ], 500);
         }
     }
-
-    // --- METHODS UNTUK TESTING / MANUAL INSERT (OPSIONAL) ---
 
     public function storeEsp1(Request $request)
     {

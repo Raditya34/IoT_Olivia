@@ -1,4 +1,3 @@
-// lib/services/notification_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,162 +6,97 @@ class NotificationService {
   static const String baseUrl =
       'https://iotolivia-production.up.railway.app/api';
 
-  // Ambil notifikasi unread
-  Future<List<Map<String, dynamic>>> getUnreadNotifications() async {
+  Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    if (token == null) throw Exception('Token tidak ditemukan');
-
-    final response = await http.get(
-      Uri.parse('$baseUrl/notifications'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Accept': 'application/json',
-      },
-    ).timeout(const Duration(seconds: 10));
-
-    final data = jsonDecode(response.body);
-
-    if (response.statusCode == 200 && data['status'] == 'success') {
-      return List<Map<String, dynamic>>.from(data['data'] ?? []);
-    }
-
-    throw Exception(data['message'] ?? 'Gagal ambil notifikasi');
+    return prefs.getString('token');
   }
 
   // Ambil semua notifikasi
   Future<List<Map<String, dynamic>>> getAllNotifications({int page = 1}) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    if (token == null) throw Exception('Token tidak ditemukan');
-
-    final response = await http.get(
-      Uri.parse('$baseUrl/notifications/all?page=$page'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Accept': 'application/json',
-      },
-    ).timeout(const Duration(seconds: 10));
-
-    final data = jsonDecode(response.body);
-
-    if (response.statusCode == 200 && data['status'] == 'success') {
-      return List<Map<String, dynamic>>.from(data['data']?['data'] ?? []);
-    }
-
-    throw Exception(data['message'] ?? 'Gagal ambil notifikasi');
-  }
-
-  // Hitung notifikasi unread (untuk badge)
-  Future<int> getUnreadCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    if (token == null) return 0;
-
     try {
+      final token = await _getToken();
       final response = await http.get(
-        Uri.parse('$baseUrl/notifications/count'),
+        Uri.parse('$baseUrl/notifications/all?page=$page'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 5));
+      );
 
       final data = jsonDecode(response.body);
-      return data['unread_count'] ?? 0;
+      if (response.statusCode == 200) {
+        // Handle Laravel Paginate structure
+        if (data['data'] is Map && data['data']['data'] is List) {
+          return List<Map<String, dynamic>>.from(data['data']['data']);
+        }
+        return List<Map<String, dynamic>>.from(data['data'] ?? []);
+      }
+      return [];
     } catch (e) {
-      return 0;
+      return [];
     }
   }
 
-  // Mark notifikasi sebagai read
-  Future<void> markAsRead(int notificationId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    if (token == null) throw Exception('Token tidak ditemukan');
-
-    final response = await http.put(
-      Uri.parse('$baseUrl/notifications/$notificationId/read'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    ).timeout(const Duration(seconds: 10));
-
-    if (response.statusCode != 200) {
-      throw Exception('Gagal mark notifikasi');
+  // FIX: Tambahkan method markAsRead
+  Future<void> markAsRead(String id) async {
+    try {
+      final token = await _getToken();
+      await http.put(
+        Uri.parse('$baseUrl/notifications/$id/read'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+    } catch (e) {
+      print("Error markAsRead: $e");
     }
   }
 
-  // Mark semua notifikasi sebagai read
+  // FIX: Sesuaikan dengan api.php (Route::put('/read-all'))
   Future<void> markAllAsRead() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    if (token == null) throw Exception('Token tidak ditemukan');
-
-    final response = await http.put(
-      Uri.parse('$baseUrl/notifications/read-all'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    ).timeout(const Duration(seconds: 10));
-
-    if (response.statusCode != 200) {
-      throw Exception('Gagal mark semua notifikasi');
+    try {
+      final token = await _getToken();
+      await http.put(
+        Uri.parse('$baseUrl/notifications/read-all'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+    } catch (e) {
+      print("Error markAllAsRead: $e");
     }
   }
 
-  // Ambil riwayat proses (timeline)
   Future<Map<String, dynamic>> getProcessHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    try {
+      final token = await _getToken();
+      final response = await http.get(
+        Uri.parse('$baseUrl/process-history'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
 
-    if (token == null) throw Exception('Token tidak ditemukan');
-
-    final response = await http.get(
-      Uri.parse('$baseUrl/process-history'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Accept': 'application/json',
-      },
-    ).timeout(const Duration(seconds: 10));
-
-    final data = jsonDecode(response.body);
-
-    if (response.statusCode == 200 && data['status'] == 'success') {
-      return data['data'] ?? {};
+      final responseData = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        var rawData = responseData['data'];
+        if (rawData is Map) return Map<String, dynamic>.from(rawData);
+        if (rawData is List) {
+          Map<String, List<dynamic>> grouped = {};
+          for (var item in rawData) {
+            String cycle = item['cycle_number']?.toString() ?? "0";
+            if (!grouped.containsKey(cycle)) grouped[cycle] = [];
+            grouped[cycle]!.add(item);
+          }
+          return grouped;
+        }
+      }
+      return {};
+    } catch (e) {
+      return {};
     }
-
-    throw Exception(data['message'] ?? 'Gagal ambil riwayat proses');
-  }
-
-  // Ambil history cycle sekarang saja
-  Future<List<Map<String, dynamic>>> getCurrentCycleHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    if (token == null) throw Exception('Token tidak ditemukan');
-
-    final response = await http.get(
-      Uri.parse('$baseUrl/process-history/current'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Accept': 'application/json',
-      },
-    ).timeout(const Duration(seconds: 10));
-
-    final data = jsonDecode(response.body);
-
-    if (response.statusCode == 200 && data['status'] == 'success') {
-      return List<Map<String, dynamic>>.from(data['data'] ?? []);
-    }
-
-    throw Exception(data['message'] ?? 'Gagal ambil history');
   }
 }

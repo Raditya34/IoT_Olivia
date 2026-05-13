@@ -3,10 +3,10 @@ import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
 class MqttService {
-  final String _host = 'n68555e3.ala.asia-southeast1.emqxsl.com';
-  final int _port = 1883;
-  final String _username = 'admin';
-  final String _password = '*difa020824';
+  final String _host = 'ff0669f1.ala.asia-southeast1.emqxsl.com';
+  final int _port = 8883;
+  final String _username = 'Olivia_1';
+  final String _password = 'Olivia12345';
   final String _clientId =
       'flutter_olivia_${DateTime.now().millisecondsSinceEpoch}';
 
@@ -21,6 +21,10 @@ class MqttService {
   void _setupClient() {
     _client.logging(on: false);
     _client.keepAlivePeriod = 60;
+    _client.secure = true;
+
+    // FIX: Sintaks terbaru untuk bypass sertifikat
+    _client.onBadCertificate = (dynamic cert) => true;
 
     final connMess = MqttConnectMessage()
         .withClientIdentifier(_clientId)
@@ -34,14 +38,17 @@ class MqttService {
       await _client.connect();
       return _client.connectionStatus!.state == MqttConnectionState.connected;
     } catch (e) {
+      print('MQTT Connection Error: $e');
       _client.disconnect();
       return false;
     }
   }
 
   void publish(String topic, Map<String, dynamic> payload) {
-    final builder = MqttClientPayloadBuilder();
-    builder.addString(jsonEncode(payload));
-    _client.publishMessage(topic, MqttQos.atMostOnce, builder.payload!);
+    if (_client.connectionStatus?.state == MqttConnectionState.connected) {
+      final builder = MqttClientPayloadBuilder();
+      builder.addString(jsonEncode(payload));
+      _client.publishMessage(topic, MqttQos.exactlyOnce, builder.payload!);
+    }
   }
 }
