@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\OliviaController;
+use App\Http\Controllers\Api\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,6 +28,21 @@ Route::middleware('auth:sanctum')->group(function () {
     // User Profile & Logout
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'getUnread']); // Notifikasi unread
+        Route::get('/all', [NotificationController::class, 'getAll']); // Semua notifikasi
+        Route::get('/count', [NotificationController::class, 'getUnreadCount']); // Hitung unread
+        Route::put('/{id}/read', [NotificationController::class, 'markAsRead']); // Mark 1 notif
+        Route::put('/read-all', [NotificationController::class, 'markAllAsRead']); // Mark semua
+    });
+
+    Route::prefix('process-history')->group(function () {
+        Route::get('/', [NotificationController::class, 'getProcessHistory']); // Semua history
+        Route::get('/current', [NotificationController::class, 'getCurrentCycleHistory']); // Cycle sekarang
+    });
 });
 
 // --- 3. IoT Endpoints (Untuk testing manual atau EMQX Webhook) ---

@@ -21,10 +21,10 @@ class AppRoutes {
   static const arang = '/arang';
   static const bleaching = '/bleaching';
   static const filtrasi = '/filtrasi';
-  static const history = '/history';
   static const historyDetail = '/history_detail';
   static const info = '/info';
-  static const notifikasi = '/notifikasi';
+  static const notifications = '/notifikasi';
+  static const history = '/history';
 
   // Gunakan GetPage untuk fitur GetX yang lebih maksimal
   static final pages = [
@@ -39,6 +39,6 @@ class AppRoutes {
     GetPage(name: history, page: () => const HistoryPage()),
     GetPage(name: historyDetail, page: () => const HistoryDetailPage()),
     GetPage(name: info, page: () => const InfoPage()),
-    GetPage(name: notifikasi, page: () => const NotifikasiPage()),
+    GetPage(name: notifications, page: () => const NotifikasiPage()),
   ];
 }

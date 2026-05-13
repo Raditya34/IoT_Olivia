@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io'; // Tambahkan ini untuk handle SocketException
 import 'package:http/http.dart' as http;
 import '../storage/auth_storage.dart';
-import '../../../network/api_config.dart'; // PERBAIKAN: Tambahkan ../ agar keluar folder services dulu
+import '../network/api_config.dart';
 
 class ApiService {
   static String baseUrl = ApiConfig.baseUrl;

@@ -81,6 +81,25 @@ class OliviaController extends Controller
         }
     }
 
+    /**
+     * AMBIL HISTORY DARI SEMUA UNIT
+     * Endpoint: GET /api/history
+     */
+    public function getHistory()
+    {
+        try {
+            return response()->json([
+                'arang' => Esp1Arang::latest()->take(20)->get(),
+                'bleaching' => Esp2Bleaching::latest()->take(20)->get(),
+                'validasi' => Esp3Validasi::latest()->take(20)->get(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     // --- METHODS UNTUK TESTING / MANUAL INSERT (OPSIONAL) ---
 
     public function storeEsp1(Request $request)
