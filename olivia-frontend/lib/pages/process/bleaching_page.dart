@@ -36,7 +36,14 @@ class BleachingPage extends StatelessWidget {
                 children: [
                   _statusTile('Solenoid Valve', controller.bleachValve.value),
                   _statusTile('Pompa 1', controller.bleachP1.value),
+                  _statusTile('Pompa 2', controller.bleachP2.value),
+                  _statusTile('Pompa 3', controller.bleachP3.value),
                   _statusTile('Heater 1', controller.bleachH1.value),
+                  _statusTile('Heater 2', controller.bleachH2.value),
+                  _statusTile('Heater 3',
+                      controller.bleachH3.value), // Ditampilkan ke UI
+                  _statusTile('Heater 4',
+                      controller.bleachH4.value), // Ditampilkan ke UI
                   _statusTile('Motor AC Speed', true,
                       subtitle: "${controller.bleachSpeed.value} RPM"),
                 ],
@@ -71,8 +78,21 @@ class BleachingPage extends StatelessWidget {
       child: Row(
         children: [
           const Icon(Icons.science_rounded, color: AppColors.teal, size: 40),
-          const SizedBox(width: 15),
-          Text('Pemurnian Minyak', style: AppText.h2(context)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tahap Pengosongan & Pemanasan',
+                    style: AppText.h3(context)),
+                const SizedBox(height: 4),
+                const Text(
+                  'Mengaduk material arang aktif bersama dengan zat pemucat pada suhu optimal.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

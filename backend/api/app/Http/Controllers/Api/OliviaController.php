@@ -36,6 +36,8 @@ class OliviaController extends Controller
                     'pompa_3' => false,
                     'heater_1' => false,
                     'heater_2' => false,
+                    'heater_3' => false, // Ditambahkan ke response dashboard
+                    'heater_4' => false, // Ditambahkan ke response dashboard
                     'motor_ac_speed' => 0
                 ],
 
@@ -48,40 +50,28 @@ class OliviaController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'success' => false,
-                'message' => 'Gagal mengambil data dashboard: ' . $e->getMessage()
+                'error' => $e->getMessage()
             ], 500);
         }
     }
 
-    /**
-     * KONTROL ON/OFF DARI FLUTTER
-     */
     public function updateControl(Request $request)
     {
-        $statusInput = $request->input('status');
-        $systemOn = $request->has('system_on')
-                    ? $request->boolean('system_on')
-                    : ($statusInput === 'on');
-
         try {
+            $systemOn = $request->input('system_on', false);
             $control = MasterControl::first() ?: new MasterControl;
-            $control->system_on = $systemOn;
+            $control->system_on = filter_var($systemOn, FILTER_VALIDATE_BOOLEAN);
             $control->save();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Status sistem berhasil diubah.',
-                'system_on' => (bool) $control->system_on
-            ]);
+                'system_on' => (bool)$control->system_on
+            ], 200);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
 
-    /**
-     * AMBIL HISTORY UNTUK TELEMETRI
-     */
     public function getHistory()
     {
         try {
@@ -91,27 +81,25 @@ class OliviaController extends Controller
                 'validasi' => Esp3Validasi::latest()->take(20)->get(),
             ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            return response()->json([
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
-    // --- METHODS UNTUK EMQX DATA STORAGE ---
+    // --- METHODS UNTUK WEBHOOK STORAGE EMQX ---
 
     public function storeEsp1(Request $request)
     {
         try {
-            // Gunakan request->all() agar lebih fleksibel terhadap format EMQX
             $data = $request->all();
-
             $res = Esp1Arang::create([
                 'suhu'   => $data['suhu'] ?? 0,
                 'volume' => $data['volume'] ?? 0,
             ]);
-
             return response()->json(['status' => 'success', 'data' => $res], 200);
         } catch (\Exception $e) {
-            Log::error("Store ESP1 Error: " . $e->getMessage());
-            return response()->json(['status' => 'error', 'msg' => $e->getMessage()], 400);
+            return response()->json(['status' => 'error'], 400);
         }
     }
 
@@ -128,8 +116,8 @@ class OliviaController extends Controller
                 'pompa_3'        => filter_var($data['pompa_3'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'heater_1'       => filter_var($data['heater_1'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'heater_2'       => filter_var($data['heater_2'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'heater_3'       => filter_var($data['heater_3'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'heater_4'       => filter_var($data['heater_4'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'heater_3'       => filter_var($data['heater_3'] ?? false, FILTER_VALIDATE_BOOLEAN), // Sesuai data hardware baru
+                'heater_4'       => filter_var($data['heater_4'] ?? false, FILTER_VALIDATE_BOOLEAN), // Sesuai data hardware baru
                 'motor_ac_speed' => $data['motor_ac_speed'] ?? 0,
             ]);
 
@@ -154,7 +142,6 @@ class OliviaController extends Controller
 
             return response()->json(['status' => 'success', 'data' => $res], 200);
         } catch (\Exception $e) {
-            Log::error("Store ESP3 Error: " . $e->getMessage());
             return response()->json(['status' => 'error'], 400);
         }
     }

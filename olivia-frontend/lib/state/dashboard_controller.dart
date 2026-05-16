@@ -20,6 +20,8 @@ class DashboardController extends GetxController {
   var bleachP3 = false.obs;
   var bleachH1 = false.obs;
   var bleachH2 = false.obs;
+  var bleachH3 = false.obs; // Tambahan Heater 3
+  var bleachH4 = false.obs; // Tambahan Heater 4
   var bleachSpeed = 0.obs;
 
   var validasiVol = 0.0.obs;
@@ -44,43 +46,66 @@ class DashboardController extends GetxController {
     super.onClose();
   }
 
+  // Helper fungsi konversi data yang tangguh
+  double _toDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    return double.tryParse(val.toString()) ?? 0.0;
+  }
+
+  bool _toBool(dynamic val) {
+    if (val == null) return false;
+    if (val is bool) return val;
+    if (val is num) return val == 1;
+    return val.toString().toLowerCase() == 'true' || val.toString() == '1';
+  }
+
   Future<void> fetchDashboardData() async {
     try {
-      final response = await _api.get('/dashboard');
+      final data = await _api.get('/dashboard');
 
-      if (response != null && response['success'] == true) {
-        systemOn.value = response['system_status'] ?? false;
+      if (data != null && data['success'] == true) {
+        systemOn.value = _toBool(data['system_status']);
 
-        var d1 = response['arang'];
-        if (d1 != null) {
-          arangTemp.value = double.tryParse(d1['suhu'].toString()) ?? 0.0;
-          arangVol.value = double.tryParse(d1['volume'].toString()) ?? 0.0;
+        // --- MAPPING DATA UNIT 1 (ARANG) ---
+        if (data['arang'] != null) {
+          var d1 = data['arang'];
+          arangTemp.value = _toDouble(d1['suhu']);
+          arangVol.value = _toDouble(d1['volume']);
           _updateSparkline(sparkArangTemp, arangTemp.value);
           _updateSparkline(sparkArangVol, arangVol.value);
         }
 
-        var d2 = response['bleaching'];
-        if (d2 != null) {
-          bleachTemp.value = double.tryParse(d2['suhu'].toString()) ?? 0.0;
-          _updateSparkline(sparkBleachTemp, bleachTemp.value);
-          bleachValve.value = (d2['valve'] == 1 || d2['valve'] == true);
-          bleachP1.value = (d2['pompa_1'] == 1 || d2['pompa_1'] == true);
-          bleachP2.value = (d2['pompa_2'] == 1 || d2['pompa_2'] == true);
-          bleachP3.value = (d2['pompa_3'] == 1 || d2['pompa_3'] == true);
-          bleachH1.value = (d2['heater_1'] == 1 || d2['heater_1'] == true);
-          bleachH2.value = (d2['heater_2'] == 1 || d2['heater_2'] == true);
+        // --- MAPPING DATA UNIT 2 (BLEACHING) ---
+        if (data['bleaching'] != null) {
+          var d2 = data['bleaching'];
+          bleachTemp.value = _toDouble(d2['suhu']);
+
+          bleachValve.value = _toBool(d2['valve']);
+          bleachP1.value = _toBool(d2['pompa_1']);
+          bleachP2.value = _toBool(d2['pompa_2']);
+          bleachP3.value = _toBool(d2['pompa_3']);
+
+          bleachH1.value = _toBool(d2['heater_1']);
+          bleachH2.value = _toBool(d2['heater_2']);
+          bleachH3.value = _toBool(d2['heater_3']); // Parse Heater 3
+          bleachH4.value = _toBool(d2['heater_4']); // Parse Heater 4
+
           bleachSpeed.value =
               int.tryParse(d2['motor_ac_speed'].toString()) ?? 0;
+          _updateSparkline(sparkBleachTemp, bleachTemp.value);
         }
 
-        var d3 = response['validasi'];
-        if (d3 != null) {
-          validasiVol.value = double.tryParse(d3['volume'].toString()) ?? 0.0;
-          turb.value = double.tryParse(d3['turbidity'].toString()) ?? 0.0;
-          visc.value = double.tryParse(d3['viskositas'].toString()) ?? 0.0;
+        // --- MAPPING DATA UNIT 3 (VALIDASI) ---
+        if (data['validasi'] != null) {
+          var d3 = data['validasi'];
+          validasiVol.value = _toDouble(d3['volume']);
+          turb.value = _toDouble(d3['turbidity']);
+          visc.value = _toDouble(d3['viskositas']);
           warna.value = d3['warna']?.toString() ?? '-';
         }
 
+        // Hitung Progress Step Alur Kerja
         if (validasiVol.value > 0) {
           progressStep.value = 2;
         } else if (bleachTemp.value > 0 || bleachP1.value) {
@@ -90,7 +115,7 @@ class DashboardController extends GetxController {
         }
       }
     } catch (e) {
-      print("Dashboard Data Error: $e");
+      print("Dashboard Data Parsing Error: $e");
     } finally {
       isLoading.value = false;
     }
@@ -103,24 +128,21 @@ class DashboardController extends GetxController {
 
   Future<void> toggleSystem() async {
     final newState = !systemOn.value;
-    final oldState = systemOn.value;
     systemOn.value = newState;
 
     try {
-      // Endpoint sesuai api.php: /control
-      // Body sesuai OliviaController: system_on (boolean)
       final response = await _api.post('/control', {'system_on': newState});
 
       if (response != null && response['success'] == true) {
-        Get.snackbar(
-            'Berhasil', 'Sistem ${newState ? 'Dinyalakan' : 'Dimatikan'}');
+        Get.snackbar('Berhasil',
+            'Sistem berhasil di${newState ? 'aktifkan' : 'matikan'}',
+            snackPosition: SnackPosition.BOTTOM);
       } else {
-        systemOn.value = oldState;
-        Get.snackbar('Gagal', 'Gagal merubah status di server');
+        systemOn.value = !newState;
       }
     } catch (e) {
-      systemOn.value = oldState;
-      Get.snackbar('Error', 'Koneksi bermasalah');
+      systemOn.value = !newState;
+      print("Toggle System Error: $e");
     }
   }
 }
