@@ -1,13 +1,12 @@
 import 'package:get/get.dart';
-import '../services/telemetry_service.dart';
+import 'package:flutter/foundation.dart';
+import '../../services/notification_service.dart';
 
 class HistoryController extends GetxController {
   var isLoading = true.obs;
-  var arangHistory = <dynamic>[].obs;
-  var bleachingHistory = <dynamic>[].obs;
-  var validasiHistory = <dynamic>[].obs;
+  var historyData = <String, List<dynamic>>{}.obs;
 
-  final TelemetryService _service = TelemetryService();
+  final NotificationService _service = NotificationService();
 
   @override
   void onInit() {
@@ -18,14 +17,10 @@ class HistoryController extends GetxController {
   Future<void> fetchHistoryData() async {
     try {
       isLoading(true);
-      final data = await _service
-          .fetchHistory(); // Pastikan API mengembalikan data modular
-
-      arangHistory.assignAll(data['arang'] ?? []);
-      bleachingHistory.assignAll(data['bleaching'] ?? []);
-      validasiHistory.assignAll(data['validasi'] ?? []);
+      final data = await _service.getProcessHistory();
+      historyData.assignAll(data);
     } catch (e) {
-      print("Error History: $e");
+      debugPrint("Error fetching history data in controller: $e");
     } finally {
       isLoading(false);
     }

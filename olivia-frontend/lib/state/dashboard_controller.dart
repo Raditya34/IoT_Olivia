@@ -7,11 +7,16 @@ class DashboardController extends GetxController {
   var progressStep = 0.obs;
   var isLoading = true.obs;
 
-  var arangTemp = 0.0.obs;
+  // --- Variabel ESP1 (Arang) ---
+  var arangTemp1 = 0.0.obs; // Suhu 1
+  var arangTemp2 = 0.0.obs; // Suhu 2
+  var arangTinggi = 0.0.obs; // Tinggi
   var arangVol = 0.0.obs;
-  var sparkArangTemp = <double>[0.0].obs;
+  var sparkArangTemp1 = <double>[0.0].obs;
+  var sparkArangTemp2 = <double>[0.0].obs;
   var sparkArangVol = <double>[0.0].obs;
 
+  // --- Variabel ESP2 (Bleaching) ---
   var bleachTemp = 0.0.obs;
   var sparkBleachTemp = <double>[0.0].obs;
   var bleachValve = false.obs;
@@ -20,14 +25,20 @@ class DashboardController extends GetxController {
   var bleachP3 = false.obs;
   var bleachH1 = false.obs;
   var bleachH2 = false.obs;
-  var bleachH3 = false.obs; // Tambahan Heater 3
-  var bleachH4 = false.obs; // Tambahan Heater 4
+  var bleachH3 = false.obs;
+  var bleachH4 = false.obs;
   var bleachSpeed = 0.obs;
 
+  // --- Variabel ESP3 (Validasi) ---
+  var validasiTinggi = 0.0.obs;
   var validasiVol = 0.0.obs;
-  var turb = 0.0.obs;
-  var visc = 0.0.obs;
-  var warna = '-'.obs;
+  var ntu = 0.0.obs; // Pengganti turbidity
+  var freq = 0.0.obs; // Pengganti viskositas
+  var tegangan = 0.0.obs;
+  var r = 0.obs; // Red
+  var g = 0.obs; // Green
+  var b = 0.obs; // Blue
+  var warnaLabel = '-'.obs; // Label warna otomatis dari RGB
 
   final ApiService _api = ApiService();
   Timer? _timer;
@@ -36,6 +47,7 @@ class DashboardController extends GetxController {
   void onInit() {
     super.onInit();
     fetchDashboardData();
+    // Auto-refresh setiap 3 detik
     _timer =
         Timer.periodic(const Duration(seconds: 3), (_) => fetchDashboardData());
   }
@@ -46,33 +58,53 @@ class DashboardController extends GetxController {
     super.onClose();
   }
 
-  // Helper fungsi konversi data yang tangguh
-  double _toDouble(dynamic val) {
-    if (val == null) return 0.0;
-    if (val is num) return val.toDouble();
-    return double.tryParse(val.toString()) ?? 0.0;
+  // Helper aman untuk parse double
+  double _toDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
   }
 
-  bool _toBool(dynamic val) {
-    if (val == null) return false;
-    if (val is bool) return val;
-    if (val is num) return val == 1;
-    return val.toString().toLowerCase() == 'true' || val.toString() == '1';
+  // Helper aman untuk parse integer (untuk RGB & Speed)
+  int _toInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  // Helper konversi RGB menjadi Label Warna
+  String getOilColorLabel(int r, int g, int b) {
+    if (r == 0 && g == 0 && b == 0) return 'Menunggu Data';
+    if (r > 200 && g > 200) return 'Kuning Cerah (Sangat Layak)';
+    if (r > 170 && g > 150) return 'Kuning Kecoklatan (Layak)';
+    if (r > 100 && g < 150) return 'Coklat (Kurang Layak)';
+    return 'Coklat Pekat (Tidak Layak)';
   }
 
   Future<void> fetchDashboardData() async {
     try {
-      final data = await _api.get('/dashboard');
+      final response = await _api.get('/dashboard');
 
-      if (data != null && data['success'] == true) {
-        systemOn.value = _toBool(data['system_status']);
+      if (response != null && response['success'] == true) {
+        systemOn.value =
+            response['system_status'] == true || response['system_status'] == 1;
+
+        var data = response;
 
         // --- MAPPING DATA UNIT 1 (ARANG) ---
         if (data['arang'] != null) {
           var d1 = data['arang'];
-          arangTemp.value = _toDouble(d1['suhu']);
+          arangTemp1.value = _toDouble(d1['suhu1']);
+          arangTemp2.value = _toDouble(d1['suhu2']);
+          arangTinggi.value = _toDouble(d1['tinggi']);
           arangVol.value = _toDouble(d1['volume']);
-          _updateSparkline(sparkArangTemp, arangTemp.value);
+
+          _updateSparkline(sparkArangTemp1, arangTemp1.value);
+          _updateSparkline(sparkArangTemp2, arangTemp2.value);
           _updateSparkline(sparkArangVol, arangVol.value);
         }
 
@@ -80,29 +112,33 @@ class DashboardController extends GetxController {
         if (data['bleaching'] != null) {
           var d2 = data['bleaching'];
           bleachTemp.value = _toDouble(d2['suhu']);
+          bleachValve.value = d2['valve'] == 1 || d2['valve'] == true;
+          bleachP1.value = d2['pompa_1'] == 1 || d2['pompa_1'] == true;
+          bleachP2.value = d2['pompa_2'] == 1 || d2['pompa_2'] == true;
+          bleachP3.value = d2['pompa_3'] == 1 || d2['pompa_3'] == true;
+          bleachH1.value = d2['heater_1'] == 1 || d2['heater_1'] == true;
+          bleachH2.value = d2['heater_2'] == 1 || d2['heater_2'] == true;
+          bleachH3.value = d2['heater_3'] == 1 || d2['heater_3'] == true;
+          bleachH4.value = d2['heater_4'] == 1 || d2['heater_4'] == true;
+          bleachSpeed.value = _toInt(d2['motor_ac_speed']);
 
-          bleachValve.value = _toBool(d2['valve']);
-          bleachP1.value = _toBool(d2['pompa_1']);
-          bleachP2.value = _toBool(d2['pompa_2']);
-          bleachP3.value = _toBool(d2['pompa_3']);
-
-          bleachH1.value = _toBool(d2['heater_1']);
-          bleachH2.value = _toBool(d2['heater_2']);
-          bleachH3.value = _toBool(d2['heater_3']); // Parse Heater 3
-          bleachH4.value = _toBool(d2['heater_4']); // Parse Heater 4
-
-          bleachSpeed.value =
-              int.tryParse(d2['motor_ac_speed'].toString()) ?? 0;
           _updateSparkline(sparkBleachTemp, bleachTemp.value);
         }
 
         // --- MAPPING DATA UNIT 3 (VALIDASI) ---
         if (data['validasi'] != null) {
           var d3 = data['validasi'];
+          validasiTinggi.value = _toDouble(d3['tinggi']);
           validasiVol.value = _toDouble(d3['volume']);
-          turb.value = _toDouble(d3['turbidity']);
-          visc.value = _toDouble(d3['viskositas']);
-          warna.value = d3['warna']?.toString() ?? '-';
+          ntu.value = _toDouble(d3['ntu']);
+          freq.value = _toDouble(d3['freq']);
+          tegangan.value = _toDouble(d3['tegangan']);
+          r.value = _toInt(d3['r']);
+          g.value = _toInt(d3['g']);
+          b.value = _toInt(d3['b']);
+
+          // Update label warna otomatis tiap kali data masuk
+          warnaLabel.value = getOilColorLabel(r.value, g.value, b.value);
         }
 
         // Hitung Progress Step Alur Kerja
@@ -135,14 +171,14 @@ class DashboardController extends GetxController {
 
       if (response != null && response['success'] == true) {
         Get.snackbar('Berhasil',
-            'Sistem berhasil di${newState ? 'aktifkan' : 'matikan'}',
-            snackPosition: SnackPosition.BOTTOM);
+            'Sistem berhasil di${newState ? 'nyalakan' : 'matikan'}');
       } else {
-        systemOn.value = !newState;
+        systemOn.value = !newState; // Rollback
+        Get.snackbar('Gagal', 'Tidak dapat mengubah status sistem');
       }
     } catch (e) {
-      systemOn.value = !newState;
-      print("Toggle System Error: $e");
+      systemOn.value = !newState; // Rollback
+      Get.snackbar('Error', 'Terjadi kesalahan jaringan: $e');
     }
   }
 }

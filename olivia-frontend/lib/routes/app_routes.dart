@@ -8,9 +8,9 @@ import '../pages/process/arang_page.dart';
 import '../pages/process/bleaching_page.dart';
 import '../pages/process/filtrasi_page.dart';
 import '../pages/history/history_page.dart';
-import '../pages/info/info_page.dart';
-import '../pages/notifikasi/notifikasi_page.dart';
 import '../pages/history/history_detail_page.dart';
+import '../pages/notifikasi/notifikasi_page.dart';
+import '../pages/info/info_page.dart';
 
 class AppRoutes {
   static const splash = '/splash';
@@ -21,12 +21,11 @@ class AppRoutes {
   static const arang = '/arang';
   static const bleaching = '/bleaching';
   static const filtrasi = '/filtrasi';
-  static const historyDetail = '/history_detail';
-  static const info = '/info';
-  static const notifications = '/notifikasi';
   static const history = '/history';
+  static const historyDetail = '/history_detail';
+  static const notifications = '/notifikasi';
+  static const info = '/info';
 
-  // Gunakan GetPage untuk fitur GetX yang lebih maksimal
   static final pages = [
     GetPage(name: splash, page: () => const SplashPage()),
     GetPage(name: login, page: () => const LoginPage()),
@@ -38,7 +37,7 @@ class AppRoutes {
     GetPage(name: filtrasi, page: () => const ValidasiPage()),
     GetPage(name: history, page: () => const HistoryPage()),
     GetPage(name: historyDetail, page: () => const HistoryDetailPage()),
-    GetPage(name: info, page: () => const InfoPage()),
     GetPage(name: notifications, page: () => const NotifikasiPage()),
+    GetPage(name: info, page: () => const InfoPage()),
   ];
 }

@@ -56,4 +56,13 @@ class AppColors {
       teal,
     ],
   );
+
+  static const LinearGradient primaryGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      teal,
+      tealDark,
+    ],
+  );
 }

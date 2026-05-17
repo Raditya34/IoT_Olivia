@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 
 class HistoryRecord {
   final String id;
-  final String stage; // Arang/Bleaching/Validasi
-  final String status; // Selesai/Layak/dll
+  final String stage; // arang, bleaching, validasi, selesai
+  final String status; // started, completed, dll
   final DateTime time;
-
-  // snapshot dummy (nanti backend)
-  final Map<String, String> metrics;
-  final Map<String, List<double>> charts;
+  final String? details;
+  final int cycleNumber;
   final IconData icon;
   final Color color;
 
@@ -17,9 +15,50 @@ class HistoryRecord {
     required this.stage,
     required this.status,
     required this.time,
-    required this.metrics,
-    required this.charts,
+    this.details,
+    required this.cycleNumber,
     required this.icon,
     required this.color,
   });
+
+  factory HistoryRecord.fromJson(Map<String, dynamic> json) {
+    String stageStr = json['stage'] ?? '';
+    IconData iconData;
+    Color colorData;
+
+    switch (stageStr) {
+      case 'arang':
+        iconData = Icons.local_fire_department_rounded;
+        colorData = Colors.orange;
+        break;
+      case 'bleaching':
+        iconData = Icons.science_rounded;
+        colorData = Colors.blue;
+        break;
+      case 'validasi':
+        iconData = Icons.verified_rounded;
+        colorData = Colors.purple;
+        break;
+      case 'selesai':
+        iconData = Icons.check_circle_rounded;
+        colorData = Colors.green;
+        break;
+      default:
+        iconData = Icons.circle_outlined;
+        colorData = Colors.grey;
+    }
+
+    return HistoryRecord(
+      id: json['id']?.toString() ?? '',
+      stage: stageStr,
+      status: json['status'] ?? '',
+      time: json['created_at'] != null
+          ? DateTime.parse(json['created_at']).toLocal()
+          : DateTime.now(),
+      details: json['details'],
+      cycleNumber: json['cycle_number'] ?? 1,
+      icon: iconData,
+      color: colorData,
+    );
+  }
 }

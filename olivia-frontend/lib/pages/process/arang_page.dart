@@ -1,3 +1,4 @@
+// lib/pages/dashboard/arang_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../routes/app_routes.dart';
@@ -5,7 +6,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/sensor_card.dart';
-import '../../state/dashboard_controller.dart'; // Pastikan path controller benar
+import '../../state/dashboard_controller.dart';
 
 class ArangPage extends StatelessWidget {
   const ArangPage({super.key});
@@ -28,11 +29,25 @@ class ArangPage extends StatelessWidget {
                 children: [
                   _sensorWrapper(
                       context,
-                      'Suhu Pemanasan',
-                      controller.arangTemp.value,
+                      'Suhu Pemanasan 1',
+                      controller.arangTemp1.value,
                       '°C',
                       Icons.thermostat_rounded,
-                      controller.sparkArangTemp),
+                      controller.sparkArangTemp1),
+                  _sensorWrapper(
+                      context,
+                      'Suhu Pemanasan 2',
+                      controller.arangTemp2.value,
+                      '°C',
+                      Icons.thermostat_outlined,
+                      controller.sparkArangTemp2),
+                  _sensorWrapper(
+                      context,
+                      'Tinggi Minyak',
+                      controller.arangTinggi.value,
+                      'cm',
+                      Icons.height_rounded,
+                      null), // Tinggi tidak pakai grafik
                   _sensorWrapper(
                       context,
                       'Volume Minyak',
@@ -42,7 +57,7 @@ class ArangPage extends StatelessWidget {
                       controller.sparkArangVol),
                 ],
               )),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           _noteCard(context),
         ],
       ),
@@ -50,7 +65,7 @@ class ArangPage extends StatelessWidget {
   }
 
   Widget _sensorWrapper(BuildContext context, String label, double value,
-      String unit, IconData icon, List<double> spark) {
+      String unit, IconData icon, List<double>? spark) {
     double cardW = (MediaQuery.of(context).size.width - 44) / 2;
     return SizedBox(
       width: cardW,
@@ -90,7 +105,7 @@ class ArangPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Tahap Pemanasan', style: AppText.h2(context)),
-                Text('Monitoring suhu & volume awal.',
+                Text('Monitoring suhu 1 & 2 serta volume awal.',
                     style: AppText.muted(context)),
               ],
             ),
@@ -108,9 +123,11 @@ class ArangPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
       ),
-      child: const Text("Data ini diambil langsung dari Unit ESP1 (Arang).",
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: Colors.grey)),
+      child: const Text(
+        "Data ini diambil langsung dari Unit ESP1 (Arang).",
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 13, color: Colors.grey),
+      ),
     );
   }
 }

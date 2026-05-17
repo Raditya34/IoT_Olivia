@@ -13,6 +13,26 @@ use Illuminate\Support\Facades\Log;
 class OliviaController extends Controller
 {
     /**
+     * Helper Method untuk ekstrak payload dari EMQX
+     * EMQX Webhook seringkali membungkus JSON sensor di dalam string 'payload'
+     */
+    private function extractData(Request $request): array
+    {
+        $raw = $request->all();
+
+        // Cek jika data dibungkus di dalam field "payload" sebagai string JSON
+        if (isset($raw['payload']) && is_string($raw['payload'])) {
+            $decoded = json_decode($raw['payload'], true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
+        }
+
+        // Jika tidak, kembalikan data asli (untuk test manual Postman)
+        return $raw;
+    }
+
+    /**
      * AMBIL DATA UNTUK DASHBOARD FLUTTER
      * Endpoint: GET /api/dashboard
      */
@@ -24,7 +44,9 @@ class OliviaController extends Controller
                 'system_status' => (bool) (MasterControl::first()->system_on ?? false),
 
                 'arang' => Esp1Arang::latest()->first() ?: [
-                    'suhu' => 0,
+                    'suhu1' => 0,
+                    'suhu2' => 0,
+                    'tinggi' => 0,
                     'volume' => 0
                 ],
 
@@ -36,16 +58,20 @@ class OliviaController extends Controller
                     'pompa_3' => false,
                     'heater_1' => false,
                     'heater_2' => false,
-                    'heater_3' => false, // Ditambahkan ke response dashboard
-                    'heater_4' => false, // Ditambahkan ke response dashboard
+                    'heater_3' => false,
+                    'heater_4' => false,
                     'motor_ac_speed' => 0
                 ],
 
                 'validasi' => Esp3Validasi::latest()->first() ?: [
+                    'tinggi' => 0,
                     'volume' => 0,
-                    'turbidity' => 0,
-                    'viskositas' => 0,
-                    'warna' => '-'
+                    'ntu' => 0,
+                    'freq' => 0,
+                    'tegangan' => 0,
+                    'r' => 0,
+                    'g' => 0,
+                    'b' => 0
                 ],
             ]);
         } catch (\Exception $e) {
@@ -92,21 +118,29 @@ class OliviaController extends Controller
     public function storeEsp1(Request $request)
     {
         try {
-            $data = $request->all();
+            // Gunakan helper extractData
+            $data = $this->extractData($request);
+            Log::info("ESP1 Data Menerima:", $data); // Untuk ngecek log di Railway
+
             $res = Esp1Arang::create([
-                'suhu'   => $data['suhu'] ?? 0,
+                'suhu1'  => $data['suhu1'] ?? 0,
+                'suhu2'  => $data['suhu2'] ?? 0,
+                'tinggi' => $data['tinggi'] ?? 0,
                 'volume' => $data['volume'] ?? 0,
             ]);
             return response()->json(['status' => 'success', 'data' => $res], 200);
         } catch (\Exception $e) {
-            return response()->json(['status' => 'error'], 400);
+            Log::error("Store ESP1 Error: " . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 400);
         }
     }
 
     public function storeEsp2(Request $request)
     {
         try {
-            $data = $request->all();
+            // Kita pakai request all karena esp2 belum komplain ada masalah,
+            // tapi disarankan kedepannya pakai $this->extractData() juga jika dari EMQX
+            $data = $this->extractData($request);
 
             $res = Esp2Bleaching::create([
                 'suhu'           => $data['suhu'] ?? 0,
@@ -116,33 +150,40 @@ class OliviaController extends Controller
                 'pompa_3'        => filter_var($data['pompa_3'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'heater_1'       => filter_var($data['heater_1'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'heater_2'       => filter_var($data['heater_2'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'heater_3'       => filter_var($data['heater_3'] ?? false, FILTER_VALIDATE_BOOLEAN), // Sesuai data hardware baru
-                'heater_4'       => filter_var($data['heater_4'] ?? false, FILTER_VALIDATE_BOOLEAN), // Sesuai data hardware baru
+                'heater_3'       => filter_var($data['heater_3'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'heater_4'       => filter_var($data['heater_4'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'motor_ac_speed' => $data['motor_ac_speed'] ?? 0,
             ]);
 
             return response()->json(['status' => 'success', 'data' => $res], 200);
         } catch (\Exception $e) {
             Log::error("Store ESP2 Error: " . $e->getMessage());
-            return response()->json(['status' => 'error'], 400);
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 400);
         }
     }
 
     public function storeEsp3(Request $request)
     {
         try {
-            $data = $request->all();
+            // Gunakan helper extractData
+            $data = $this->extractData($request);
+            Log::info("ESP3 Data Menerima:", $data); // Untuk ngecek log di Railway
 
             $res = Esp3Validasi::create([
+                'tinggi'     => $data['tinggi'] ?? 0,
                 'volume'     => $data['volume'] ?? 0,
-                'turbidity'  => $data['turbidity'] ?? 0,
-                'viskositas' => $data['viskositas'] ?? 0,
-                'warna'      => $data['warna'] ?? '-',
+                'ntu'        => $data['ntu'] ?? 0,
+                'freq'       => $data['freq'] ?? 0,
+                'tegangan'   => $data['tegangan'] ?? 0,
+                'r'          => $data['r'] ?? 0,
+                'g'          => $data['g'] ?? 0,
+                'b'          => $data['b'] ?? 0,
             ]);
 
             return response()->json(['status' => 'success', 'data' => $res], 200);
         } catch (\Exception $e) {
-            return response()->json(['status' => 'error'], 400);
+            Log::error("Store ESP3 Error: " . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 400);
         }
     }
 }

@@ -1,3 +1,4 @@
+// lib/pages/dashboard/bleaching_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../routes/app_routes.dart';
@@ -34,18 +35,39 @@ class BleachingPage extends StatelessWidget {
           const SizedBox(height: 10),
           Obx(() => Column(
                 children: [
-                  _statusTile('Solenoid Valve', controller.bleachValve.value),
-                  _statusTile('Pompa 1', controller.bleachP1.value),
-                  _statusTile('Pompa 2', controller.bleachP2.value),
-                  _statusTile('Pompa 3', controller.bleachP3.value),
-                  _statusTile('Heater 1', controller.bleachH1.value),
-                  _statusTile('Heater 2', controller.bleachH2.value),
-                  _statusTile('Heater 3',
-                      controller.bleachH3.value), // Ditampilkan ke UI
-                  _statusTile('Heater 4',
-                      controller.bleachH4.value), // Ditampilkan ke UI
-                  _statusTile('Motor AC Speed', true,
-                      subtitle: "${controller.bleachSpeed.value} RPM"),
+                  _statusTile('Solenoid Valve', controller.bleachValve.value,
+                      'Membuka/Tutup Jalur'),
+                  _statusTile(
+                      'Pompa 1', controller.bleachP1.value, 'Aliran Masuk'),
+                  _statusTile(
+                      'Pompa 2', controller.bleachP2.value, 'Sirkulasi'),
+                  _statusTile(
+                      'Pompa 3', controller.bleachP3.value, 'Aliran Keluar'),
+                  _statusTile(
+                      'Heater 1', controller.bleachH1.value, 'Pemanas Kiri'),
+                  _statusTile(
+                      'Heater 2', controller.bleachH2.value, 'Pemanas Kanan'),
+                  _statusTile('Heater 3', controller.bleachH3.value,
+                      'Pemanas Tambahan'),
+                  _statusTile('Heater 4', controller.bleachH4.value,
+                      'Pemanas Tambahan'),
+
+                  // Menampilkan Kecepatan Motor AC
+                  Card(
+                    color: AppColors.surface,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    child: ListTile(
+                      title: const Text('Motor AC Speed',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Kecepatan Pengaduk'),
+                      trailing: Text('${controller.bleachSpeed.value} RPM',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: AppColors.teal)),
+                    ),
+                  ),
                 ],
               )),
         ],
@@ -53,7 +75,7 @@ class BleachingPage extends StatelessWidget {
     );
   }
 
-  Widget _statusTile(String title, bool isOn, {String? subtitle}) {
+  Widget _statusTile(String title, bool isOn, [String? subtitle]) {
     return Card(
       color: AppColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -83,8 +105,7 @@ class BleachingPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Tahap Pengosongan & Pemanasan',
-                    style: AppText.h3(context)),
+                Text('Tahap Bleaching', style: AppText.h3(context)),
                 const SizedBox(height: 4),
                 const Text(
                   'Mengaduk material arang aktif bersama dengan zat pemucat pada suhu optimal.',

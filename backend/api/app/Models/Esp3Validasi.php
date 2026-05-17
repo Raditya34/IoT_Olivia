@@ -9,6 +9,7 @@ class Esp3Validasi extends Model
 {
     use HasFactory;
     protected $table = 'esp3_validasi';
-    protected $fillable = ['volume', 'turbidity', 'viskositas', 'warna']; // Kolom yang boleh diisi
+    // Field disesuaikan dengan yang dikirim ESP32 (NTU, Freq, RGB)
+    protected $fillable = ['tinggi', 'volume', 'ntu', 'freq', 'tegangan', 'cP', 'r', 'g', 'b'];
     public $timestamps = false;
 }

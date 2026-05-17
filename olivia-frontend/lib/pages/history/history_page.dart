@@ -1,4 +1,3 @@
-// lib/pages/history/history_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../routes/app_routes.dart';
@@ -40,32 +39,37 @@ class _HistoryPageState extends State<HistoryPage> {
           future: _historyFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(
+                  child: CircularProgressIndicator(color: AppColors.teal));
             }
-
             if (snapshot.hasError ||
                 !snapshot.hasData ||
                 snapshot.data!.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.history_rounded,
-                        size: 64, color: Colors.grey[300]),
-                    const SizedBox(height: 16),
-                    const Text('Belum ada riwayat proses'),
-                  ],
-                ),
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+                  const Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.history_rounded,
+                            size: 64, color: Colors.grey),
+                        SizedBox(height: 12),
+                        Text('Belum ada riwayat proses',
+                            style: TextStyle(color: Colors.grey, fontSize: 16)),
+                      ],
+                    ),
+                  ),
+                ],
               );
             }
 
             final groupedData = snapshot.data!;
-            // Mengurutkan cycle dari yang terbaru
             final cycleNumbers = groupedData.keys.toList()
               ..sort((a, b) => int.parse(b).compareTo(int.parse(a)));
 
             return ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.all(12),
               itemCount: cycleNumbers.length,
               itemBuilder: (context, index) {
                 final cycleNumber = cycleNumbers[index];
@@ -83,20 +87,28 @@ class _HistoryPageState extends State<HistoryPage> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      elevation: 2,
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: AppColors.teal.withOpacity(0.1),
-          child: Text(cycleNumber,
-              style: const TextStyle(
-                  color: AppColors.teal, fontWeight: FontWeight.bold)),
+          child: Text(
+            cycleNumber,
+            style: const TextStyle(
+                color: AppColors.teal, fontWeight: FontWeight.bold),
+          ),
         ),
-        title: Text('Cycle Pembakaran #$cycleNumber',
-            style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          'Cycle Pembakaran #$cycleNumber',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         subtitle: Text('Terdapat ${records.length} tahapan data'),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.teal),
         onTap: () => Get.toNamed(
           AppRoutes.historyDetail,
-          arguments: {'cycleNumber': cycleNumber, 'records': records},
+          arguments: {
+            'cycleNumber': cycleNumber,
+            'records': records,
+          },
         ),
       ),
     );

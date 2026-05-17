@@ -1,3 +1,4 @@
+// lib/pages/dashboard/filtrasi_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../routes/app_routes.dart';
@@ -28,14 +29,17 @@ class ValidasiPage extends StatelessWidget {
                 children: [
                   _sensorBox(context, 'Volume Akhir',
                       controller.validasiVol.value, 'L', Icons.water_drop),
-                  _sensorBox(context, 'Turbidity', controller.turb.value, 'NTU',
-                      Icons.blur_on),
-                  _sensorBox(context, 'Viskositas', controller.visc.value, 'cP',
-                      Icons.speed),
+                  _sensorBox(context, 'Turbidity', controller.ntu.value, 'NTU',
+                      Icons.blur_on), // Diganti jadi NTU
+                  _sensorBox(context, 'Viskositas', controller.freq.value, 'Hz',
+                      Icons.speed), // Diganti jadi freq (Hz)
+                  _sensorBox(context, 'Tegangan', controller.tegangan.value,
+                      'V', Icons.bolt), // Menambah Tegangan
                 ],
               )),
           const SizedBox(height: 18),
-          Obx(() => _warnaCard(context, controller.warna.value)),
+          // Menampilkan langsung string warnaLabel yang dibuat oleh Controller
+          Obx(() => _warnaCard(context, controller.warnaLabel.value)),
         ],
       ),
     );
@@ -76,11 +80,16 @@ class ValidasiPage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text('Hasil Warna:', style: AppText.h3(context)),
-          Text(warna,
-              style: TextStyle(
-                  fontSize: 18,
+          Flexible(
+            child: Text(
+              warna,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.teal)),
+                  color: AppColors.teal,
+                  fontSize: 15),
+            ),
+          ),
         ],
       ),
     );

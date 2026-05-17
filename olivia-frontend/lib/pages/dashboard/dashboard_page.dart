@@ -27,32 +27,23 @@ class DashboardPage extends StatelessWidget {
           children: [
             _hero(context),
             const SizedBox(height: 12),
-
             Obx(() => _systemControl(context, controller)),
             const SizedBox(height: 12),
-
             Obx(() => ProgressTimeline(
                   step: controller.progressStep.value,
                   active: controller.systemOn.value,
                 )),
             const SizedBox(height: 24),
-
             _sectionTitle(context, 'Navigasi Proses'),
             const SizedBox(height: 12),
-
-            // ✅ NAVIGASI KE HALAMAN PROSES
             _processNavGrid(context, controller),
             const SizedBox(height: 24),
-
             _sectionTitle(context, 'Ringkasan Sensor'),
             const SizedBox(height: 12),
-
             Obx(() => _sensorGrid(context, controller)),
             const SizedBox(height: 24),
-
             _sectionTitle(context, 'Analisis Kualitas'),
             const SizedBox(height: 12),
-
             Obx(() => _recommendationCard(context, controller)),
             const SizedBox(height: 40),
           ],
@@ -61,11 +52,64 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  // ✅ SECTION BARU: Grid navigasi ke 3 halaman proses
+  Widget _hero(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Pemurnian Minyak Jelantah', style: AppText.h2(context)),
+          const SizedBox(height: 4),
+          Text('Sistem Monitoring & Kontrol Otomatis',
+              style: AppText.muted(context)),
+        ],
+      ),
+    );
+  }
+
+  Widget _systemControl(BuildContext context, DashboardController controller) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+          gradient: controller.systemOn.value
+              ? AppColors.primaryGradient
+              : const LinearGradient(colors: [Colors.grey, Colors.blueGrey]),
+          borderRadius: BorderRadius.circular(24)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Status Sistem',
+                  style: TextStyle(color: Colors.white.withOpacity(0.9))),
+              Text(
+                controller.systemOn.value ? 'AKTIF BERJALAN' : 'SISTEM MATI',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          Switch(
+            value: controller.systemOn.value,
+            onChanged: (val) => controller.toggleSystem(),
+            activeColor: Colors.white,
+            activeTrackColor: Colors.teal.shade300,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _processNavGrid(BuildContext context, DashboardController controller) {
     return Column(
       children: [
-        // Baris 1: Arang & Bleaching
         Row(
           children: [
             Expanded(
@@ -73,10 +117,8 @@ class DashboardPage extends StatelessWidget {
                     context,
                     icon: Icons.local_fire_department_rounded,
                     title: 'Proses Arang',
-                    subtitle:
-                        '${controller.arangTemp.value.toStringAsFixed(1)} °C',
-                    color: Colors.orange,
-                    onTap: () => Get.toNamed(AppRoutes.arang),
+                    subtitle: '${controller.arangTemp1.value} °C',
+                    route: AppRoutes.arang,
                   )),
             ),
             const SizedBox(width: 12),
@@ -85,58 +127,50 @@ class DashboardPage extends StatelessWidget {
                     context,
                     icon: Icons.science_rounded,
                     title: 'Bleaching',
-                    subtitle:
-                        '${controller.bleachTemp.value.toStringAsFixed(1)} °C',
-                    color: Colors.blue,
-                    onTap: () => Get.toNamed(AppRoutes.bleaching),
+                    subtitle: '${controller.bleachTemp.value} °C',
+                    route: AppRoutes.bleaching,
                   )),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        // Baris 2: Validasi (full width)
         Obx(() => _processCard(
               context,
-              icon: Icons.verified_rounded,
-              title: 'Validasi Kualitas',
-              subtitle:
-                  'Turb: ${controller.turb.value.toStringAsFixed(1)} NTU  •  Warna: ${controller.warna.value}',
-              color: AppColors.teal,
-              onTap: () => Get.toNamed(AppRoutes.filtrasi),
-              fullWidth: true,
+              icon: Icons.water_drop_rounded,
+              title: 'Validasi Akhir',
+              subtitle: 'Vol: ${controller.validasiVol.value} L',
+              route: AppRoutes.filtrasi, // Validasi page
+              isFullWidth: true,
             )),
       ],
     );
   }
 
-  Widget _processCard(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-    bool fullWidth = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
+  Widget _processCard(BuildContext context,
+      {required IconData icon,
+      required String title,
+      required String subtitle,
+      required String route,
+      bool isFullWidth = false}) {
+    return InkWell(
+      onTap: () => Get.toNamed(route),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        width: fullWidth ? double.infinity : null,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withOpacity(0.3)),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.teal.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: AppColors.teal, size: 28),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -144,67 +178,16 @@ class DashboardPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: AppText.h3(context),
-                      overflow: TextOverflow.ellipsis),
-                  Text(subtitle,
-                      style: AppText.muted(context),
-                      overflow: TextOverflow.ellipsis),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(subtitle, style: AppText.muted(context)),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: color.withOpacity(0.6)),
+            if (isFullWidth)
+              const Icon(Icons.arrow_forward_ios_rounded,
+                  size: 16, color: Colors.grey),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _hero(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Halo, Admin', style: AppText.h1(context)),
-        Text('Pantau produksi minyak hari ini.', style: AppText.muted(context)),
-      ],
-    );
-  }
-
-  Widget _systemControl(BuildContext context, DashboardController controller) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: controller.systemOn.value
-            ? AppColors.teal.withOpacity(0.1)
-            : AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-            color:
-                controller.systemOn.value ? AppColors.teal : AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.power_settings_new_rounded,
-            color: controller.systemOn.value ? AppColors.teal : Colors.grey,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Status Sistem', style: AppText.h3(context)),
-                Text(controller.systemOn.value
-                    ? 'Sistem Berjalan'
-                    : 'Sistem Standby'),
-              ],
-            ),
-          ),
-          Switch(
-            value: controller.systemOn.value,
-            onChanged: (val) => controller.toggleSystem(),
-            activeColor: AppColors.teal,
-          ),
-        ],
       ),
     );
   }
@@ -218,15 +201,15 @@ class DashboardPage extends StatelessWidget {
         SizedBox(
           width: cardW,
           child: SensorCard(
-              label: 'Arang • Suhu',
-              value: controller.arangTemp.value.toStringAsFixed(1),
+              label: 'Suhu Arang 1',
+              value: controller.arangTemp1.value.toStringAsFixed(1),
               unit: '°C',
-              icon: Icons.local_fire_department_rounded),
+              icon: Icons.thermostat_rounded),
         ),
         SizedBox(
           width: cardW,
           child: SensorCard(
-              label: 'Bleach • Suhu',
+              label: 'Suhu Bleaching',
               value: controller.bleachTemp.value.toStringAsFixed(1),
               unit: '°C',
               icon: Icons.thermostat_auto_rounded),
@@ -234,15 +217,15 @@ class DashboardPage extends StatelessWidget {
         SizedBox(
           width: cardW,
           child: SensorCard(
-              label: 'Validasi • Turb',
-              value: controller.turb.value.toStringAsFixed(1),
+              label: 'Turbidity',
+              value: controller.ntu.value.toStringAsFixed(1), // pakai ntu
               unit: 'NTU',
               icon: Icons.blur_on_rounded),
         ),
         SizedBox(
           width: cardW,
           child: SensorCard(
-              label: 'Minyak • Vol',
+              label: 'Volume Akhir',
               value: controller.validasiVol.value.toStringAsFixed(1),
               unit: 'L',
               icon: Icons.opacity_rounded),
@@ -253,7 +236,9 @@ class DashboardPage extends StatelessWidget {
 
   Widget _recommendationCard(
       BuildContext context, DashboardController controller) {
-    final isGood = controller.turb.value < 50 && controller.turb.value > 0;
+    // Mengecek apakah Turbidity (NTU) bagus (biasanya di bawah 50 bagus untuk minyak jernih)
+    final isGood = controller.ntu.value < 50 && controller.ntu.value > 0;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -272,13 +257,16 @@ class DashboardPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Hasil Warna: ${controller.warna.value}',
+                // Menggunakan warnaLabel.value dari controller
+                Text('Warna: ${controller.warnaLabel.value}',
                     style: AppText.h3(context)),
                 Text(
                   isGood
-                      ? 'Kualitas memenuhi standar'
-                      : 'Menunggu data validasi...',
-                  style: TextStyle(color: isGood ? Colors.teal : Colors.orange),
+                      ? 'Kekeruhan Minyak sangat baik (Memenuhi Standar)'
+                      : 'Menunggu proses selesai atau kekeruhan masih tinggi...',
+                  style: TextStyle(
+                      color: isGood ? Colors.teal : Colors.orange,
+                      fontSize: 13),
                 ),
               ],
             ),
@@ -289,6 +277,7 @@ class DashboardPage extends StatelessWidget {
   }
 
   Widget _sectionTitle(BuildContext context, String title) {
-    return Text(title, style: AppText.h2(context));
+    return Text(title,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700));
   }
 }
