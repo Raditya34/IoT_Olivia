@@ -29,17 +29,17 @@ class ValidasiPage extends StatelessWidget {
                 children: [
                   _sensorBox(context, 'Volume Akhir',
                       controller.validasiVol.value, 'L', Icons.water_drop),
-                  _sensorBox(context, 'Turbidity', controller.ntu.value, 'NTU',
-                      Icons.blur_on), // Diganti jadi NTU
-                  _sensorBox(context, 'Viskositas', controller.freq.value, 'Hz',
-                      Icons.speed), // Diganti jadi freq (Hz)
-                  _sensorBox(context, 'Tegangan', controller.tegangan.value,
-                      'V', Icons.bolt), // Menambah Tegangan
+                  _sensorBox(context, 'Turbiditas', controller.ntu.value, 'NTU',
+                      Icons.blur_on),
+                  _sensorBox(context, 'Viskositas', controller.viscosity.value,
+                      'cP', Icons.speed),
                 ],
               )),
           const SizedBox(height: 18),
-          // Menampilkan langsung string warnaLabel yang dibuat oleh Controller
-          Obx(() => _warnaCard(context, controller.warnaLabel.value)),
+          Text('Kualitas Warna Hasil Akhir', style: AppText.h3(context)),
+          const SizedBox(height: 10),
+          Obx(() => _warnaCard(context, controller.warnaLabel.value,
+              controller.r.value, controller.g.value, controller.b.value)),
         ],
       ),
     );
@@ -65,33 +65,60 @@ class ValidasiPage extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: AppColors.border)),
-      child: Text('Validasi Kualitas Akhir', style: AppText.h2(context)),
+      child:
+          Text('Validasi Kualitas Akhir Pemurnian', style: AppText.h2(context)),
     );
   }
 
-  Widget _warnaCard(BuildContext context, String warna) {
+  Widget _warnaCard(BuildContext context, String warna, int r, int g, int b) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: AppColors.border)),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Hasil Warna:', style: AppText.h3(context)),
-          Flexible(
-            child: Text(
-              warna,
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.teal,
-                  fontSize: 15),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Hasil Klasifikasi:', style: AppText.h3(context)),
+              Flexible(
+                child: Text(
+                  warna,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: AppColors.teal),
+                ),
+              ),
+            ],
           ),
+          const Divider(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _rgbIndicator('R', r, Colors.red),
+              _rgbIndicator('G', g, Colors.green),
+              _rgbIndicator('B', b, Colors.blue),
+            ],
+          )
         ],
       ),
+    );
+  }
+
+  Widget _rgbIndicator(String label, int value, Color color) {
+    return Column(
+      children: [
+        Text(label,
+            style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(height: 4),
+        Text('$value',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+      ],
     );
   }
 }

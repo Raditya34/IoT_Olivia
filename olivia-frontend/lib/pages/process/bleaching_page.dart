@@ -24,48 +24,47 @@ class BleachingPage extends StatelessWidget {
           _hero(context),
           const SizedBox(height: 18),
           Obx(() => SensorCard(
-                label: 'Suhu Bleaching',
-                value: controller.bleachTemp.value.toStringAsFixed(1),
+                label: 'Suhu Tabung Bleaching',
+                value: controller.suhuBleaching.value.toStringAsFixed(1),
                 unit: '°C',
                 icon: Icons.thermostat_auto_rounded,
-                spark: controller.sparkBleachTemp,
+                spark: controller.suhuBleaching.value > 0
+                    ? controller.sparkSuhuBleaching
+                    : [0.0].obs,
               )),
           const SizedBox(height: 18),
           Text('Status Aktuator (Unit 2)', style: AppText.h3(context)),
           const SizedBox(height: 10),
           Obx(() => Column(
                 children: [
-                  _statusTile('Solenoid Valve', controller.bleachValve.value,
-                      'Membuka/Tutup Jalur'),
-                  _statusTile(
-                      'Pompa 1', controller.bleachP1.value, 'Aliran Masuk'),
-                  _statusTile(
-                      'Pompa 2', controller.bleachP2.value, 'Sirkulasi'),
-                  _statusTile(
-                      'Pompa 3', controller.bleachP3.value, 'Aliran Keluar'),
-                  _statusTile(
-                      'Heater 1', controller.bleachH1.value, 'Pemanas Kiri'),
-                  _statusTile(
-                      'Heater 2', controller.bleachH2.value, 'Pemanas Kanan'),
-                  _statusTile('Heater 3', controller.bleachH3.value,
-                      'Pemanas Tambahan'),
-                  _statusTile('Heater 4', controller.bleachH4.value,
-                      'Pemanas Tambahan'),
-
-                  // Menampilkan Kecepatan Motor AC
+                  _actuatorTile(
+                      'Solenoid Valve Utama', controller.bleachValve.value),
+                  _actuatorTile('Pompa Inlet (P1)', controller.bleachP1.value),
+                  _actuatorTile(
+                      'Pompa Sirkulasi (P2)', controller.bleachP2.value),
+                  _actuatorTile('Pompa Outlet (P3)', controller.bleachP3.value),
+                  _actuatorTile(
+                      'Heater Element 1 (H1)', controller.bleachH1.value),
+                  _actuatorTile(
+                      'Heater Element 2 (H2)', controller.bleachH2.value),
+                  _actuatorTile(
+                      'Heater Element 3 (H3)', controller.bleachH3.value),
+                  _actuatorTile(
+                      'Heater Element 4 (H4)', controller.bleachH4.value),
                   Card(
                     color: AppColors.surface,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                     child: ListTile(
-                      title: const Text('Motor AC Speed',
+                      title: const Text('Kecepatan Pengaduk (Motor)',
                           style: TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Kecepatan Pengaduk'),
-                      trailing: Text('${controller.bleachSpeed.value} RPM',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: AppColors.teal)),
+                      trailing: Text(
+                        '${controller.bleachSpeed.value} RPM',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.teal,
+                            fontSize: 16),
+                      ),
                     ),
                   ),
                 ],
@@ -75,13 +74,12 @@ class BleachingPage extends StatelessWidget {
     );
   }
 
-  Widget _statusTile(String title, bool isOn, [String? subtitle]) {
+  Widget _actuatorTile(String title, bool isOn) {
     return Card(
       color: AppColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: subtitle != null ? Text(subtitle) : null,
         trailing: Icon(
           isOn ? Icons.check_circle_rounded : Icons.cancel_rounded,
           color: isOn ? Colors.green : Colors.red,
@@ -108,7 +106,7 @@ class BleachingPage extends StatelessWidget {
                 Text('Tahap Bleaching', style: AppText.h3(context)),
                 const SizedBox(height: 4),
                 const Text(
-                  'Mengaduk material arang aktif bersama dengan zat pemucat pada suhu optimal.',
+                  'Proses pencampuran material arang aktif bersama zat pemucat minyak goreng pada suhu optimal.',
                   style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
               ],

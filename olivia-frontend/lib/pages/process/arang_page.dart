@@ -23,58 +23,20 @@ class ArangPage extends StatelessWidget {
         children: [
           _hero(context),
           const SizedBox(height: 18),
-          Obx(() => Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _sensorWrapper(
-                      context,
-                      'Suhu Pemanasan 1',
-                      controller.arangTemp1.value,
-                      '°C',
-                      Icons.thermostat_rounded,
-                      controller.sparkArangTemp1),
-                  _sensorWrapper(
-                      context,
-                      'Suhu Pemanasan 2',
-                      controller.arangTemp2.value,
-                      '°C',
-                      Icons.thermostat_outlined,
-                      controller.sparkArangTemp2),
-                  _sensorWrapper(
-                      context,
-                      'Tinggi Minyak',
-                      controller.arangTinggi.value,
-                      'cm',
-                      Icons.height_rounded,
-                      null), // Tinggi tidak pakai grafik
-                  _sensorWrapper(
-                      context,
-                      'Volume Minyak',
-                      controller.arangVol.value,
-                      'L',
-                      Icons.water_drop_rounded,
-                      controller.sparkArangVol),
-                ],
+          Text('Sensor Pembakaran Tungku Arang', style: AppText.h3(context)),
+          const SizedBox(height: 10),
+          Obx(() => SensorCard(
+                label: 'Suhu Pemanasan Arang',
+                value: controller.suhuArang.value.toStringAsFixed(1),
+                unit: '°C',
+                icon: Icons.local_fire_department_rounded,
+                spark: controller.suhuArang.value > 0
+                    ? controller.sparkSuhuArang
+                    : [0.0].obs,
               )),
           const SizedBox(height: 24),
           _noteCard(context),
         ],
-      ),
-    );
-  }
-
-  Widget _sensorWrapper(BuildContext context, String label, double value,
-      String unit, IconData icon, List<double>? spark) {
-    double cardW = (MediaQuery.of(context).size.width - 44) / 2;
-    return SizedBox(
-      width: cardW,
-      child: SensorCard(
-        label: label,
-        value: value.toStringAsFixed(1),
-        unit: unit,
-        icon: icon,
-        spark: spark,
       ),
     );
   }
@@ -105,8 +67,10 @@ class ArangPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Tahap Pemanasan', style: AppText.h2(context)),
-                Text('Monitoring suhu 1 & 2 serta volume awal.',
-                    style: AppText.muted(context)),
+                const Text(
+                  'Monitoring suhu tungku pembakaran arang aktif secara real-time.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
               ],
             ),
           ),
@@ -124,9 +88,10 @@ class ArangPage extends StatelessWidget {
         border: Border.all(color: AppColors.border),
       ),
       child: const Text(
-        "Data ini diambil langsung dari Unit ESP1 (Arang).",
+        "Data parameter pembakaran tungku dibaca langsung dari Unit Slave 1.",
         textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 13, color: Colors.grey),
+        style: TextStyle(
+            fontSize: 12, color: AppColors.teal, fontWeight: FontWeight.w500),
       ),
     );
   }

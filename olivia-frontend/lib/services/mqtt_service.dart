@@ -22,8 +22,6 @@ class MqttService {
     _client.logging(on: false);
     _client.keepAlivePeriod = 60;
     _client.secure = true;
-
-    // FIX: Sintaks terbaru untuk bypass sertifikat
     _client.onBadCertificate = (dynamic cert) => true;
 
     final connMess = MqttConnectMessage()
@@ -44,11 +42,35 @@ class MqttService {
     }
   }
 
+  void subscribe(String topic) {
+    if (_client.connectionStatus!.state == MqttConnectionState.connected) {
+      _client.subscribe(topic, MqttQos.atMostOnce);
+      _client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> c) {
+        final MqttPublishMessage recMess = c[0].payload as MqttPublishMessage;
+        final String pt =
+            MqttPublishPayload.bytesToString(recMess.payload.message);
+
+        try {
+          final Map<String, dynamic> parsedData = jsonDecode(pt);
+          if (onMessageReceived != null) {
+            onMessageReceived?.call(c[0].topic, parsedData);
+          }
+        } catch (e) {
+          print('Error parsing MQTT payload: $e');
+        }
+      });
+    }
+  }
+
   void publish(String topic, Map<String, dynamic> payload) {
-    if (_client.connectionStatus?.state == MqttConnectionState.connected) {
+    if (_client.connectionStatus!.state == MqttConnectionState.connected) {
       final builder = MqttClientPayloadBuilder();
       builder.addString(jsonEncode(payload));
-      _client.publishMessage(topic, MqttQos.exactlyOnce, builder.payload!);
+      _client.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
     }
+  }
+
+  void disconnect() {
+    _client.disconnect();
   }
 }

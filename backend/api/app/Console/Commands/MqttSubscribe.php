@@ -16,11 +16,11 @@ class MqttSubscribe extends Command
 
     public function handle()
     {
-        $server   = env('MQTT_HOST');
-        $port     = (int) env('MQTT_PORT', 8883); // ✅ TLS port
+        $server   = env('MQTT_HOST', 'ff0669f1.ala.asia-southeast1.emqxsl.com');
+        $port     = (int) env('MQTT_PORT', 8883);
         $clientId = env('MQTT_CLIENT_ID', 'laravel_sub') . '_' . uniqid();
-        $username = env('MQTT_USERNAME');
-        $password = env('MQTT_PASSWORD');
+        $username = env('MQTT_USERNAME', 'Olivia_1');
+        $password = env('MQTT_PASSWORD', 'Olivia12345');
         $topic    = env('MQTT_TOPIC', 'olivia/+/telemetry');
 
         $this->info("Menghubungkan ke $server:$port ...");
@@ -32,61 +32,62 @@ class MqttSubscribe extends Command
             ->setPassword($password)
             ->setKeepAliveInterval(60)
             ->setConnectTimeout(15)
-            ->setUseTls(true)                  // ✅ Wajib untuk emqxsl.com
-            ->setTlsSelfSignedAllowed(false);  // ✅ Pakai cert resmi EMQX
+            ->setUseTls(true)
+            ->setTlsSelfSignedAllowed(false);
 
         try {
             $mqtt->connect($settings, true);
             $this->info("✅ Terhubung! Menunggu data dari topic: $topic");
+
+            $mqtt->subscribe($topic, function (string $topic, string $message) {
+                $parts = explode('/', $topic);
+                $deviceCode = $parts[1] ?? 'UNKNOWN';
+
+                $this->line("[" . now() . "] $topic => $message");
+                $data = json_decode($message, true);
+
+                if (!$data) {
+                    $this->error("Payload tidak valid JSON");
+                    return;
+                }
+
+                try {
+                    match ($deviceCode) {
+                        'OLIVIA-01' => Esp1Arang::create([
+                            'suhu_arang' => $data['suhu_arang'] ?? 0,
+                            'volume_arang' => $data['volume_arang'] ?? 0
+                        ]),
+                        'OLIVIA-02' => Esp2Bleaching::create([
+                            'suhu_bleaching' => $data['suhu_bleaching'] ?? 0,
+                            'valve' => $data['valve'] ?? false,
+                            'p1'    => $data['p1'] ?? false,
+                            'p2'    => $data['p2'] ?? false,
+                            'p3'    => $data['p3'] ?? false,
+                            'h1'    => $data['h1'] ?? false,
+                            'h2'    => $data['h2'] ?? false,
+                            'h3'    => $data['h3'] ?? false,
+                            'h4'    => $data['h4'] ?? false,
+                            'speed' => $data['speed'] ?? 0,
+                        ]),
+                        'OLIVIA-03' => Esp3Validasi::create([
+                            'volume_validasi'    => $data['volume_validasi']    ?? 0,
+                            'turbidity' => $data['turbidity'] ?? 0,
+                            'viscosity' => $data['viscosity'] ?? 0,
+                            'r'         => $data['r']         ?? 0,
+                            'g'         => $data['g']         ?? 0,
+                            'b'         => $data['b']         ?? 0,
+                        ]),
+                        default => $this->warn("⚠️ Device tidak dikenal: $deviceCode"),
+                    };
+                    $this->info("✓ Data $deviceCode disimpan.");
+                } catch (\Exception $e) {
+                    $this->error("❌ Gagal simpan: " . $e->getMessage());
+                }
+            }, 0);
+
+            $mqtt->loop(true);
         } catch (\Exception $e) {
-            $this->error("❌ Gagal konek: " . $e->getMessage());
-            return 1;
+            $this->error("Koneksi Error: " . $e->getMessage());
         }
-
-        $mqtt->subscribe($topic, function (string $topic, string $message) {
-            $this->info("[" . now() . "] $topic => $message");
-
-            $parts      = explode('/', $topic);
-            $deviceCode = $parts[1] ?? 'UNKNOWN';
-            $data       = json_decode($message, true);
-
-            if (!$data) {
-                $this->warn("Payload tidak valid JSON: $message");
-                return;
-            }
-
-            try {
-                match ($deviceCode) {
-                    'OLIVIA-01' => Esp1Arang::create([
-                        'suhu'   => $data['suhu']   ?? 0,
-                        'volume' => $data['volume'] ?? 0,
-                    ]),
-                    'OLIVIA-02' => Esp2Bleaching::create([
-                        'suhu'           => $data['suhu']    ?? 0,
-                        'valve'          => $data['valve']   ?? false,
-                        'pompa_1'        => $data['pompa_1'] ?? false,
-                        'pompa_2'        => $data['pompa_2'] ?? false,
-                        'pompa_3'        => $data['pompa_3'] ?? false,
-                        'heater_1'       => $data['heater_1'] ?? false,
-                        'heater_2'       => $data['heater_2'] ?? false,
-                        'heater_3'       => $data['heater_3'] ?? false,
-                        'heater_4'       => $data['heater_4'] ?? false,
-                        'motor_ac_speed' => $data['speed']   ?? 0,
-                    ]),
-                    'OLIVIA-03' => Esp3Validasi::create([
-                        'volume'     => $data['volume']     ?? 0,
-                        'turbidity'  => $data['turbidity']  ?? 0,
-                        'viskositas' => $data['viskositas'] ?? 0,
-                        'warna'      => $data['warna']      ?? '-',
-                    ]),
-                    default => $this->warn("⚠️ Device tidak dikenal: $deviceCode"),
-                };
-                $this->info("✓ Data $deviceCode disimpan.");
-            } catch (\Exception $e) {
-                $this->error("❌ Gagal simpan: " . $e->getMessage());
-            }
-        }, 0);
-
-        $mqtt->loop(true); // Jalan terus
     }
 }

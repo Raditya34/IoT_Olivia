@@ -1,24 +1,22 @@
+// lib/state/dashboard_controller.dart
 import 'package:get/get.dart';
 import 'dart:async';
 import '../../services/api_service.dart';
 
 class DashboardController extends GetxController {
+  final ApiService _api = ApiService();
+
   var systemOn = false.obs;
   var progressStep = 0.obs;
   var isLoading = true.obs;
 
-  // --- Variabel ESP1 (Arang) ---
-  var arangTemp1 = 0.0.obs; // Suhu 1
-  var arangTemp2 = 0.0.obs; // Suhu 2
-  var arangTinggi = 0.0.obs; // Tinggi
-  var arangVol = 0.0.obs;
-  var sparkArangTemp1 = <double>[0.0].obs;
-  var sparkArangTemp2 = <double>[0.0].obs;
-  var sparkArangVol = <double>[0.0].obs;
+  // --- Variabel Proses 1 (Arang) ---
+  var suhuArang = 0.0.obs;
+  var sparkSuhuArang = <double>[0.0].obs;
 
-  // --- Variabel ESP2 (Bleaching) ---
-  var bleachTemp = 0.0.obs;
-  var sparkBleachTemp = <double>[0.0].obs;
+  // --- Variabel Proses 2 (Bleaching) ---
+  var suhuBleaching = 0.0.obs;
+  var sparkSuhuBleaching = <double>[0.0].obs;
   var bleachValve = false.obs;
   var bleachP1 = false.obs;
   var bleachP2 = false.obs;
@@ -29,122 +27,90 @@ class DashboardController extends GetxController {
   var bleachH4 = false.obs;
   var bleachSpeed = 0.obs;
 
-  // --- Variabel ESP3 (Validasi) ---
-  var validasiTinggi = 0.0.obs;
+  // --- Variabel Proses 3 (Validasi / Filtrasi) ---
   var validasiVol = 0.0.obs;
-  var ntu = 0.0.obs; // Pengganti turbidity
-  var freq = 0.0.obs; // Pengganti viskositas
-  var tegangan = 0.0.obs;
-  var r = 0.obs; // Red
-  var g = 0.obs; // Green
-  var b = 0.obs; // Blue
-  var warnaLabel = '-'.obs; // Label warna otomatis dari RGB
+  var ntu = 0.0.obs;
+  var viscosity = 0.0.obs;
+  var r = 0.obs;
+  var g = 0.obs;
+  var b = 0.obs;
+  var warnaLabel = 'Menunggu Data...'.obs;
 
-  final ApiService _api = ApiService();
-  Timer? _timer;
+  Timer? _pollingTimer;
 
   @override
   void onInit() {
     super.onInit();
     fetchDashboardData();
-    // Auto-refresh setiap 3 detik
-    _timer =
-        Timer.periodic(const Duration(seconds: 3), (_) => fetchDashboardData());
+    // Jalankan pooling periodik jika sistem aktif untuk pemantauan real-time
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (systemOn.value) {
+        fetchDashboardData();
+      }
+    });
   }
 
   @override
   void onClose() {
-    _timer?.cancel();
+    _pollingTimer?.cancel();
     super.onClose();
-  }
-
-  // Helper aman untuk parse double
-  double _toDouble(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0.0;
-    return 0.0;
-  }
-
-  // Helper aman untuk parse integer (untuk RGB & Speed)
-  int _toInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is double) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
-  }
-
-  // Helper konversi RGB menjadi Label Warna
-  String getOilColorLabel(int r, int g, int b) {
-    if (r == 0 && g == 0 && b == 0) return 'Menunggu Data';
-    if (r > 200 && g > 200) return 'Kuning Cerah (Sangat Layak)';
-    if (r > 170 && g > 150) return 'Kuning Kecoklatan (Layak)';
-    if (r > 100 && g < 150) return 'Coklat (Kurang Layak)';
-    return 'Coklat Pekat (Tidak Layak)';
   }
 
   Future<void> fetchDashboardData() async {
     try {
-      final response = await _api.get('/dashboard');
+      if (isLoading.value && sparkSuhuArang.length <= 1) {
+        isLoading.value = true;
+      }
 
-      if (response != null && response['success'] == true) {
-        systemOn.value =
-            response['system_status'] == true || response['system_status'] == 1;
+      final response = await _api.get('/dashboard/telemetry');
 
-        var data = response;
+      if (response != null && response['status'] == 'success') {
+        final data = response['data'];
 
-        // --- MAPPING DATA UNIT 1 (ARANG) ---
+        systemOn.value = data['system_on'] ?? false;
+
+        // Parsing Data Proses 1: Arang
         if (data['arang'] != null) {
           var d1 = data['arang'];
-          arangTemp1.value = _toDouble(d1['suhu1']);
-          arangTemp2.value = _toDouble(d1['suhu2']);
-          arangTinggi.value = _toDouble(d1['tinggi']);
-          arangVol.value = _toDouble(d1['volume']);
-
-          _updateSparkline(sparkArangTemp1, arangTemp1.value);
-          _updateSparkline(sparkArangTemp2, arangTemp2.value);
-          _updateSparkline(sparkArangVol, arangVol.value);
+          suhuArang.value = _toDouble(d1['suhu_arang']);
+          _updateSparkline(sparkSuhuArang, suhuArang.value);
         }
 
-        // --- MAPPING DATA UNIT 2 (BLEACHING) ---
+        // Parsing Data Proses 2: Bleaching
         if (data['bleaching'] != null) {
           var d2 = data['bleaching'];
-          bleachTemp.value = _toDouble(d2['suhu']);
-          bleachValve.value = d2['valve'] == 1 || d2['valve'] == true;
-          bleachP1.value = d2['pompa_1'] == 1 || d2['pompa_1'] == true;
-          bleachP2.value = d2['pompa_2'] == 1 || d2['pompa_2'] == true;
-          bleachP3.value = d2['pompa_3'] == 1 || d2['pompa_3'] == true;
-          bleachH1.value = d2['heater_1'] == 1 || d2['heater_1'] == true;
-          bleachH2.value = d2['heater_2'] == 1 || d2['heater_2'] == true;
-          bleachH3.value = d2['heater_3'] == 1 || d2['heater_3'] == true;
-          bleachH4.value = d2['heater_4'] == 1 || d2['heater_4'] == true;
-          bleachSpeed.value = _toInt(d2['motor_ac_speed']);
+          suhuBleaching.value = _toDouble(d2['suhu_bleaching']);
+          _updateSparkline(sparkSuhuBleaching, suhuBleaching.value);
 
-          _updateSparkline(sparkBleachTemp, bleachTemp.value);
+          bleachValve.value = d2['valve'] ?? false;
+          bleachP1.value = d2['p1'] ?? false;
+          bleachP2.value = d2['p2'] ?? false;
+          bleachP3.value = d2['p3'] ?? false;
+          bleachH1.value = d2['h1'] ?? false;
+          bleachH2.value = d2['h2'] ?? false;
+          bleachH3.value = d2['h3'] ?? false;
+          bleachH4.value = d2['h4'] ?? false;
+          bleachSpeed.value = _toInt(d2['speed']);
         }
 
-        // --- MAPPING DATA UNIT 3 (VALIDASI) ---
+        // Parsing Data Proses 3: Validasi (Filtrasi)
         if (data['validasi'] != null) {
           var d3 = data['validasi'];
-          validasiTinggi.value = _toDouble(d3['tinggi']);
           validasiVol.value = _toDouble(d3['volume']);
-          ntu.value = _toDouble(d3['ntu']);
-          freq.value = _toDouble(d3['freq']);
-          tegangan.value = _toDouble(d3['tegangan']);
+          ntu.value = _toDouble(d3['turbidity']);
+          viscosity.value = _toDouble(d3['viscosity']);
           r.value = _toInt(d3['r']);
           g.value = _toInt(d3['g']);
           b.value = _toInt(d3['b']);
 
-          // Update label warna otomatis tiap kali data masuk
+          // Update label klasifikasi warna minyak otomatis
           warnaLabel.value = getOilColorLabel(r.value, g.value, b.value);
         }
 
-        // Hitung Progress Step Alur Kerja
-        if (validasiVol.value > 0) {
+        // Hitung Progress Step Alur Kerja Aktual
+        if (validasiVol.value > 0 || ntu.value > 0) {
           progressStep.value = 2;
-        } else if (bleachTemp.value > 0 || bleachP1.value) {
+        } else if (suhuBleaching.value > 0 || bleachP1.value) {
           progressStep.value = 1;
         } else {
           progressStep.value = 0;
@@ -172,13 +138,42 @@ class DashboardController extends GetxController {
       if (response != null && response['success'] == true) {
         Get.snackbar('Berhasil',
             'Sistem berhasil di${newState ? 'nyalakan' : 'matikan'}');
+        fetchDashboardData();
       } else {
-        systemOn.value = !newState; // Rollback
-        Get.snackbar('Gagal', 'Tidak dapat mengubah status sistem');
+        systemOn.value = !newState; // Rollback status
+        Get.snackbar('Gagal', 'Gagal mengubah status kontrol sistem');
       }
     } catch (e) {
-      systemOn.value = !newState; // Rollback
+      systemOn.value = !newState; // Rollback status
       Get.snackbar('Error', 'Terjadi kesalahan jaringan: $e');
     }
+  }
+
+  // Fungsi Klasifikasi Range Kualitas Warna Minyak Goreng
+  String getOilColorLabel(int r, int g, int b) {
+    if (r == 0 && g == 0 && b == 0) return 'Menunggu Data...';
+    int brightness = (r + g + b) ~/ 3;
+
+    if (brightness > 180 && b > 100) {
+      return 'Jernih (Sangat Layak)';
+    } else if (brightness > 120) {
+      return 'Agak Jernih (Cukup Layak)';
+    } else if (brightness > 60) {
+      return 'Coklat Kekuningan (Kurang Layak)';
+    } else {
+      return 'Coklat Kotor (Tidak Layak)';
+    }
+  }
+
+  double _toDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    return double.tryParse(val.toString()) ?? 0.0;
+  }
+
+  int _toInt(dynamic val) {
+    if (val == null) return 0;
+    if (val is num) return val.toInt();
+    return int.tryParse(val.toString()) ?? 0;
   }
 }

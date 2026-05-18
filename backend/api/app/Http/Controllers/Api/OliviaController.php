@@ -14,7 +14,7 @@ class OliviaController extends Controller
 {
     /**
      * AMBIL DATA UNTUK DASHBOARD FLUTTER
-     * Endpoint: GET /api/dashboard
+     * Endpoint: GET /api/dashboard/telemetry
      */
     public function getDashboardData()
     {
@@ -22,142 +22,97 @@ class OliviaController extends Controller
             $esp1 = Esp1Arang::latest()->first();
             $esp2 = Esp2Bleaching::latest()->first();
             $esp3 = Esp3Validasi::latest()->first();
+            $master = MasterControl::first();
 
+            // Format kembalian HARUS sama dengan ekspektasi Frontend
             return response()->json([
-                'success' => true,
-                'system_status' => (bool) (MasterControl::first()->system_on ?? false),
+                'status' => 'success',
+                'data' => [
+                    'system_on' => (bool) ($master->system_on ?? false),
 
-                // MAPPING DATA ESP1 KE FORMAT FLUTTER (suhu1, suhu2, tinggi, volume)
-                'arang' => [
-                    'suhu1' => $esp1 ? (float)$esp1->suhu : 0,
-                    'suhu2' => $esp1 ? (float)$esp1->suhu : 0, // Fallback (pakai suhu yg sama)
-                    'tinggi' => 0, // Fallback sementara
-                    'volume' => $esp1 ? (float)$esp1->volume : 0
-                ],
+                    'arang' => [
+                        'suhu_arang' => $esp1 ? (float)$esp1->suhu_arang : 0.0,
+                        'volume_arang' => $esp1 ? (float)$esp1->volume_arang : 0.0
+                    ],
 
-                // MAPPING DATA ESP2
-                'bleaching' => $esp2 ?: [
-                    'suhu' => 0, 'valve' => false, 'pompa_1' => false, 'pompa_2' => false,
-                    'pompa_3' => false, 'heater_1' => false, 'heater_2' => false,
-                    'heater_3' => false, 'heater_4' => false, 'motor_ac_speed' => 0
-                ],
+                    'bleaching' => [
+                        'suhu_bleaching' => $esp2 ? (float)$esp2->suhu_bleaching : 0.0,
+                        'valve' => (bool)($esp2->valve ?? false),
+                        'p1'    => (bool)($esp2->p1 ?? false),
+                        'p2'    => (bool)($esp2->p2 ?? false),
+                        'p3'    => (bool)($esp2->p3 ?? false),
+                        'h1'    => (bool)($esp2->h1 ?? false),
+                        'h2'    => (bool)($esp2->h2 ?? false),
+                        'h3'    => (bool)($esp2->h3 ?? false),
+                        'h4'    => (bool)($esp2->h4 ?? false),
+                        'speed' => (int)($esp2->speed ?? 0),
+                    ],
 
-                // MAPPING DATA ESP3 (sesuaikan dengan format dashboard_controller flutter)
-                'validasi' => $esp3 ?: [
-                    'volume' => 0, 'turbidity' => 0, 'viskositas' => 0, 'warna' => '-',
-                    'tegangan' => 0, 'r' => 0, 'g' => 0, 'b' => 0
+                    'validasi' => [
+                        'volume_validasi'    => $esp3 ? (float)$esp3->volume_validasi : 0.0,
+                        'turbidity' => $esp3 ? (float)$esp3->turbidity : 0.0,
+                        'viscosity' => $esp3 ? (float)$esp3->viscosity : 0.0,
+                        'r'         => $esp3 ? (int)$esp3->r : 0,
+                        'g'         => $esp3 ? (int)$esp3->g : 0,
+                        'b'         => $esp3 ? (int)$esp3->b : 0,
+                    ]
                 ]
             ], 200);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
 
     /**
-     * STORE DATA DARI ESP1
-     * Endpoint: POST /api/iot/esp1/store
+     * STORE DATA DARI WEBHOOK / API POST
      */
-    public function storeEsp1(Request $request)
-    {
-        try {
-            // 1. Bongkar format EMQX Webhook (Ambil string JSON di dalam "payload")
-            if ($request->has('payload')) {
-                $data = json_decode($request->input('payload'), true);
-            } else {
-                $data = $request->all(); // Fallback jika tes via Postman
-            }
+    public function storeEsp1(Request $request) {
+        $data = $request->has('payload') ? json_decode($request->input('payload'), true) : $request->all();
+        $res = Esp1Arang::create(['suhu_arang' => $data['suhu_arang'] ?? 0,
+        'volume_arang' => $data['volume_arang'] ?? 0]);
+        return response()->json(['status' => 'success', 'data' => $res], 200);
+    }
 
-            // 2. Simpan ke Database
-            $res = Esp1Arang::create([
-                // ESP ngirim "suhu1", tapi DB kita cm punya "suhu", jadi kita jembatani
-                'suhu'     => $data['suhu1'] ?? $data['suhu'] ?? 0,
-                'volume'   => $data['volume'] ?? 0,
-            ]);
+    public function storeEsp2(Request $request) {
+        $data = $request->has('payload') ? json_decode($request->input('payload'), true) : $request->all();
+        $res = Esp2Bleaching::create([
+            'suhu_bleaching' => $data['suhu_bleaching'] ?? 0,
+            'valve' => filter_var($data['valve'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'p1'    => filter_var($data['p1'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'p2'    => filter_var($data['p2'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'p3'    => filter_var($data['p3'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'h1'    => filter_var($data['h1'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'h2'    => filter_var($data['h2'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'h3'    => filter_var($data['h3'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'h4'    => filter_var($data['h4'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'speed' => $data['speed'] ?? 0,
+        ]);
+        return response()->json(['status' => 'success', 'data' => $res], 200);
+    }
 
-            return response()->json(['status' => 'success', 'data' => $res], 200);
-        } catch (\Exception $e) {
-            Log::error("Store ESP1 Error: " . $e->getMessage());
-            return response()->json(['status' => 'error'], 400);
-        }
+    public function storeEsp3(Request $request) {
+        $data = $request->has('payload') ? json_decode($request->input('payload'), true) : $request->all();
+        $res = Esp3Validasi::create([
+            'volume_validasi'    => $data['volume_validasi'] ?? 0,
+            'turbidity' => $data['turbidity'] ?? 0,
+            'viscosity' => $data['viscosity'] ?? 0,
+            'r'         => $data['r'] ?? 0,
+            'g'         => $data['g'] ?? 0,
+            'b'         => $data['b'] ?? 0,
+        ]);
+        return response()->json(['status' => 'success', 'data' => $res], 200);
     }
 
     /**
-     * STORE DATA DARI ESP2
-     * Endpoint: POST /api/iot/esp2/store
+     * TOGGLE SYSTEM ON/OFF (Sudah sesuai dengan request frontend)
      */
-    public function storeEsp2(Request $request)
-    {
+    public function updateControl(Request $request) {
         try {
-            if ($request->has('payload')) {
-                $data = json_decode($request->input('payload'), true);
-            } else {
-                $data = $request->all();
-            }
-
-            $res = Esp2Bleaching::create([
-                'suhu'           => $data['suhu'] ?? 0,
-                'valve'          => filter_var($data['valve'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'pompa_1'        => filter_var($data['pompa_1'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'pompa_2'        => filter_var($data['pompa_2'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'pompa_3'        => filter_var($data['pompa_3'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'heater_1'       => filter_var($data['heater_1'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'heater_2'       => filter_var($data['heater_2'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'heater_3'       => filter_var($data['heater_3'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'heater_4'       => filter_var($data['heater_4'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'motor_ac_speed' => $data['motor_ac_speed'] ?? 0,
-            ]);
-
-            return response()->json(['status' => 'success', 'data' => $res], 200);
-        } catch (\Exception $e) {
-            Log::error("Store ESP2 Error: " . $e->getMessage());
-            return response()->json(['status' => 'error'], 400);
-        }
-    }
-
-    /**
-     * STORE DATA DARI ESP3
-     * Endpoint: POST /api/iot/esp3/store
-     */
-    public function storeEsp3(Request $request)
-    {
-        try {
-            if ($request->has('payload')) {
-                $data = json_decode($request->input('payload'), true);
-            } else {
-                $data = $request->all();
-            }
-
-            $res = Esp3Validasi::create([
-                'volume'     => $data['volume'] ?? 0,
-                'turbidity'  => $data['turbidity'] ?? 0,
-                'viskositas' => $data['viskositas'] ?? 0,
-                'warna'      => $data['warna'] ?? '-',
-            ]);
-
-            return response()->json(['status' => 'success', 'data' => $res], 200);
-        } catch (\Exception $e) {
-            Log::error("Store ESP3 Error: " . $e->getMessage());
-            return response()->json(['status' => 'error'], 400);
-        }
-    }
-
-    /**
-     * TOGGLE SYSTEM ON/OFF
-     * Endpoint: POST /api/control
-     */
-    public function updateControl(Request $request)
-    {
-        try {
-            $master = MasterControl::first();
-            if (!$master) {
-                $master = MasterControl::create(['system_on' => false]);
-            }
-
+            $master = MasterControl::firstOrCreate([], ['system_on' => false]);
             if ($request->has('system_on')) {
                 $master->system_on = filter_var($request->system_on, FILTER_VALIDATE_BOOLEAN);
                 $master->save();
             }
-
             return response()->json(['success' => true, 'data' => $master], 200);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
