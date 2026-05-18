@@ -22,17 +22,45 @@ class ArangPage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           _hero(context),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
+
           Text('Sensor Pembakaran Tungku Arang', style: AppText.h3(context)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
+
+          // Monitoring Suhu Tungku 1
           Obx(() => SensorCard(
-                label: 'Suhu Pemanasan Arang',
+                label: 'Suhu Pemanasan 1',
                 value: controller.suhuArang.value.toStringAsFixed(1),
                 unit: '°C',
-                icon: Icons.local_fire_department_rounded,
+                icon: Icons.thermostat_rounded,
                 spark: controller.suhuArang.value > 0
                     ? controller.sparkSuhuArang
                     : [0.0].obs,
+              )),
+          const SizedBox(height: 14),
+
+          // Monitoring Suhu Bleaching (perbandingan)
+          Obx(() => SensorCard(
+                label: 'Suhu Bleaching',
+                value: controller.suhuBleaching.value.toStringAsFixed(1),
+                unit: '°C',
+                icon: Icons.thermostat_auto_rounded,
+                spark: controller.suhuBleaching.value > 0
+                    ? controller.sparkSuhuBleaching
+                    : [0.0].obs,
+              )),
+          const SizedBox(height: 20),
+
+          Text('Volume Penampung Arang', style: AppText.h3(context)),
+          const SizedBox(height: 12),
+
+          // Monitoring Volume Validasi
+          Obx(() => SensorCard(
+                label: 'Volume Validasi',
+                value: controller.validasiVol.value.toStringAsFixed(1),
+                unit: 'L',
+                icon: Icons.opacity_rounded,
+                spark: [0.0].obs,
               )),
           const SizedBox(height: 24),
           _noteCard(context),
@@ -68,7 +96,7 @@ class ArangPage extends StatelessWidget {
               children: [
                 Text('Tahap Pemanasan', style: AppText.h2(context)),
                 const Text(
-                  'Monitoring suhu tungku pembakaran arang aktif secara real-time.',
+                  'Monitoring parameter suhu pembakaran dan takaran volume arang aktif secara real-time.',
                   style: TextStyle(fontSize: 13, color: Colors.grey),
                 ),
               ],
@@ -88,7 +116,7 @@ class ArangPage extends StatelessWidget {
         border: Border.all(color: AppColors.border),
       ),
       child: const Text(
-        "Data parameter pembakaran tungku dibaca langsung dari Unit Slave 1.",
+        "Data parameter pembakaran tungku dibaca langsung dari Unit Slave ESP1.",
         textAlign: TextAlign.center,
         style: TextStyle(
             fontSize: 12, color: AppColors.teal, fontWeight: FontWeight.w500),

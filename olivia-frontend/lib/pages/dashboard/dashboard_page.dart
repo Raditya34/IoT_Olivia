@@ -25,7 +25,7 @@ class DashboardPage extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            // Banner Validasi Kualitas Akhir (Hero)
+            // Banner Ringkasan Kualitas Warna (Hero)
             Obx(() => _heroSummary(context, controller)),
             const SizedBox(height: 16),
 
@@ -40,28 +40,37 @@ class DashboardPage extends StatelessWidget {
                 )),
             const SizedBox(height: 24),
 
-            // Navigasi Menu Menu Proses Utama
-            _sectionTitle(context, 'Navigasi Proses'),
-            const SizedBox(height: 12),
-            _processNavigationGrid(context),
+            // 🌟 BARU: Monitoring Sensor Utama Keseluruhan Proses
+            _sectionTitle(context, 'Ringkasan Monitoring Proses'),
+            const SizedBox(height: 10),
+            Obx(() => _processOverview(context, controller)),
             const SizedBox(height: 24),
+
+            // Navigasi Detail Unit Kerja
+            _sectionTitle(context, 'Navigasi Detail Unit'),
+            const SizedBox(height: 10),
+            _processNavigation(context),
+            const SizedBox(height: 24),
+
+            // 🌟 BARU: Hasil Verifikasi / Validasi Kualitas Akhir di Paling Bawah
+            _sectionTitle(context, 'Hasil Verifikasi Akhir'),
+            const SizedBox(height: 10),
+            Obx(() => _validationResultCard(context, controller)),
           ],
         ),
       ),
     );
   }
 
-  /// Widget Hero Banner di bagian atas untuk memantau kualitas hasil minyak secara realtime
   Widget _heroSummary(BuildContext context, DashboardController controller) {
-    final isGood = controller.ntu.value < 50 && controller.ntu.value > 0;
+    bool isGood = controller.ntu.value < 50 && controller.ntu.value > 0;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border),
-      ),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border)),
       child: Row(
         children: [
           Icon(
@@ -69,25 +78,20 @@ class DashboardPage extends StatelessWidget {
             color: isGood ? Colors.teal : Colors.orange,
             size: 32,
           ),
-          const SizedBox(
-              width: 16), // FIX: Menghilangkan karakter '\' pengganggu
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Warna: ${controller.warnaLabel.value}',
-                  style: AppText.h3(context),
-                ),
-                const SizedBox(height: 4),
+                Text('Warna: ${controller.warnaLabel.value}',
+                    style: AppText.h3(context)),
                 Text(
                   isGood
                       ? 'Kekeruhan Minyak sangat baik (Memenuhi Standar)'
                       : 'Menunggu proses selesai atau kekeruhan masih tinggi...',
                   style: TextStyle(
-                    color: isGood ? Colors.teal : Colors.orange,
-                    fontSize: 13,
-                  ),
+                      color: isGood ? Colors.teal : Colors.orange,
+                      fontSize: 13),
                 ),
               ],
             ),
@@ -97,13 +101,12 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  /// Card kontrol untuk mengaktifkan atau menonaktifkan seluruh mesin IoT
   Widget _systemControl(BuildContext context, DashboardController controller) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
@@ -112,12 +115,12 @@ class DashboardPage extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Status Sistem Utama', style: AppText.h3(context)),
+              Text('Sistem Utama', style: AppText.h3(context)),
               Text(
-                controller.systemOn.value ? 'Sistem Aktif' : 'Sistem Nonaktif',
+                controller.systemOn.value ? 'Sistem Aktif' : 'Sistem Non-Aktif',
                 style: TextStyle(
-                  color: controller.systemOn.value ? Colors.green : Colors.grey,
-                  fontSize: 12,
+                  color: controller.systemOn.value ? Colors.green : Colors.red,
+                  fontSize: 13,
                 ),
               ),
             ],
@@ -125,38 +128,150 @@ class DashboardPage extends StatelessWidget {
           Switch(
             value: controller.systemOn.value,
             activeColor: AppColors.teal,
-            onChanged: (value) => controller.toggleSystem(),
+            onChanged: (val) => controller.toggleSystem(),
           ),
         ],
       ),
     );
   }
 
-  /// Sub-heading section penanda kelompok menu dashboard
-  Widget _sectionTitle(BuildContext context, String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.bold,
-        color: AppColors.teal,
+  Widget _processOverview(
+      BuildContext context, DashboardController controller) {
+    // Cek status aktif heater dari unit 2
+    bool isHeaterOn = controller.bleachH1.value ||
+        controller.bleachH2.value ||
+        controller.bleachH3.value ||
+        controller.bleachH4.value;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.analytics_rounded,
+                  color: AppColors.teal, size: 20),
+              const SizedBox(width: 8),
+              Text('Parameter Proses Berjalan', style: AppText.h3(context)),
+            ],
+          ),
+          const Divider(height: 20),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.4,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            children: [
+              _overviewItem(
+                label: 'Suhu Arang',
+                value: '${controller.suhuArang.value.toStringAsFixed(1)} °C',
+                icon: Icons.thermostat_rounded,
+                iconColor: Colors.orange,
+              ),
+              _overviewItem(
+                label: 'Volume Validasi',
+                value: '${controller.validasiVol.value.toStringAsFixed(1)} L',
+                icon: Icons.opacity_rounded,
+                iconColor: Colors.blue,
+              ),
+              _overviewItem(
+                label: 'Suhu Bleaching',
+                value:
+                    '${controller.suhuBleaching.value.toStringAsFixed(1)} °C',
+                icon: Icons.wb_sunny_rounded,
+                iconColor: Colors.redAccent,
+              ),
+              _overviewItem(
+                label: 'Status Heater',
+                value: isHeaterOn ? 'Aktif' : 'Mati',
+                icon: Icons.local_fire_department_rounded,
+                iconColor: isHeaterOn ? Colors.green : Colors.grey,
+              ),
+              _overviewItem(
+                label: 'Volume Validasi',
+                value: '${controller.validasiVol.value.toStringAsFixed(1)} L',
+                icon: Icons.water_drop_rounded,
+                iconColor: Colors.purple,
+              ),
+              _overviewItem(
+                label: 'Kekeruhan Minyak',
+                value: '${controller.ntu.value.toStringAsFixed(1)} NTU',
+                icon: Icons.blur_on_rounded,
+                iconColor: Colors.teal,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  /// Grid menu navigasi untuk mengarahkan pengguna ke detail tiap unit ESP32
-  Widget _processNavigationGrid(BuildContext context) {
+  Widget _overviewItem({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color iconColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.background.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _processNavigation(BuildContext context) {
     return GridView.count(
       crossAxisCount: 3,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 0.9,
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
       children: [
         _navCard(
           context,
-          title: 'Tahap Arang',
+          title: 'Arang',
           icon: Icons.local_fire_department_rounded,
           color: Colors.orange,
           route: AppRoutes.arang,
@@ -173,14 +288,12 @@ class DashboardPage extends StatelessWidget {
           title: 'Validasi',
           icon: Icons.verified_rounded,
           color: Colors.purple,
-          route: AppRoutes
-              .filtrasi, // Sesuai dengan rute halaman ValidasiPage Anda
+          route: AppRoutes.filtrasi,
         ),
       ],
     );
   }
 
-  /// Komponen pembangun tombol navigasi unit
   Widget _navCard(
     BuildContext context, {
     required String title,
@@ -201,22 +314,113 @@ class DashboardPage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircleAvatar(
-              radius: 24,
+              radius: 22,
               backgroundColor: color.withOpacity(0.1),
-              child: Icon(icon, color: color, size: 26),
+              child: Icon(icon, color: color, size: 24),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               title,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _validationResultCard(
+      BuildContext context, DashboardController controller) {
+    double ntuVal = controller.ntu.value;
+    double volVal = controller.validasiVol.value;
+    bool isSystemOn = controller.systemOn.value;
+
+    String statusTitle;
+    String statusDesc;
+    Color statusColor;
+    IconData statusIcon;
+
+    // Evaluasi kriteria filtrasi berdasarkan data riil unit validasi akhir
+    if (ntuVal < 50 && ntuVal > 0) {
+      statusTitle = 'FILTRASI BERHASIL';
+      statusDesc =
+          'Kualitas minyak jernih dan memenuhi standar purifikasi (Kekeruhan: ${ntuVal.toStringAsFixed(1)} NTU).';
+      statusColor = Colors.teal;
+      statusIcon = Icons.check_circle_rounded;
+    } else if (ntuVal >= 50) {
+      statusTitle = 'FILTRASI GAGAL';
+      statusDesc =
+          'Kekeruhan minyak terlalu pekat (${ntuVal.toStringAsFixed(1)} NTU) dan di luar ambang batas aman.';
+      statusColor = Colors.red;
+      statusIcon = Icons.cancel_rounded;
+    } else {
+      if (isSystemOn) {
+        statusTitle = 'SISTEM MEMPROSES';
+        statusDesc =
+            'Minyak sedang diolah di dalam tabung, menanti cairan turun ke penampung validasi akhir.';
+        statusColor = Colors.orange;
+        statusIcon = Icons.sync_rounded;
+      } else if (volVal > 0) {
+        statusTitle = 'PROSES SELESAI';
+        statusDesc =
+            'Cairan terdeteksi di unit filtrasi, namun sensor kualitas masih mengonfigurasi pembacaan.';
+        statusColor = Colors.blue;
+        statusIcon = Icons.info_rounded;
+      } else {
+        statusTitle = 'SISTEM STANDBY';
+        statusDesc =
+            'Sistem purifikasi dalam posisi siap. Jalankan sakelar utama untuk memulai verifikasi kualitas.';
+        statusColor = Colors.grey;
+        statusIcon = Icons.power_settings_new_rounded;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: statusColor.withOpacity(0.4), width: 1.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(statusIcon, color: statusColor, size: 36),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  statusTitle,
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                      letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  statusDesc,
+                  style: const TextStyle(
+                      fontSize: 13, color: Colors.grey, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(BuildContext context, String title) {
+    return Text(
+      title,
+      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
     );
   }
 }
