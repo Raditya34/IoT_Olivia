@@ -177,8 +177,8 @@ class DashboardPage extends StatelessWidget {
                 iconColor: Colors.orange,
               ),
               _overviewItem(
-                label: 'Volume Validasi',
-                value: '${controller.validasiVol.value.toStringAsFixed(1)} L',
+                label: 'Volume Arang',
+                value: '${controller.arangVol.value.toStringAsFixed(1)} L',
                 icon: Icons.opacity_rounded,
                 iconColor: Colors.blue,
               ),

@@ -13,6 +13,7 @@ class DashboardController extends GetxController {
   // --- Variabel Proses 1 (Arang) ---
   var suhuArang = 0.0.obs;
   var sparkSuhuArang = <double>[0.0].obs;
+  var arangVol = 0.0.obs;
 
   // --- Variabel Proses 2 (Bleaching) ---
   var suhuBleaching = 0.0.obs;
