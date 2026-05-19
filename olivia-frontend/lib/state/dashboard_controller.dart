@@ -2,12 +2,13 @@
 import 'package:get/get.dart';
 import 'dart:async';
 import '../../services/api_service.dart';
-import '../../services/mqtt_service.dart'; // 🌟 TAMBAHAN: Import MqttService Anda
+import '../../services/mqtt_service.dart';
 
 class DashboardController extends GetxController {
   final ApiService _api = ApiService();
-  final MqttService _mqttService =
-      MqttService(); // 🌟 TAMBAHAN: Inisialisasi MqttService
+
+  // Menggunakan instance singleton yang telah didaftarkan ke GetX
+  final MqttService _mqttService = Get.find<MqttService>();
 
   var systemOn = false.obs;
   var progressStep = 0.obs;
@@ -40,8 +41,6 @@ class DashboardController extends GetxController {
   var b = 0.obs;
   var warnaLabel = 'Menunggu Data...'.obs;
 
-  // 💡 SEBELUMNYA: Timer? _pollingTimer; (Dihapus karena sudah digantikan real-time MQTT)
-
   @override
   void onInit() {
     super.onInit();
@@ -50,8 +49,8 @@ class DashboardController extends GetxController {
 
   @override
   void onClose() {
-    _mqttService
-        .disconnect(); // 🌟 TAMBAHAN: Wajib memutus koneksi HiveMQ saat page ditutup
+    // Memutus koneksi jika halaman/controller dihancurkan
+    _mqttService.disconnect();
     super.onClose();
   }
 
@@ -75,12 +74,13 @@ class DashboardController extends GetxController {
     }
   }
 
-  // 🌟 BARU: Fungsi untuk memproses data real-time dari HiveMQ
+  // Fungsi untuk memproses data real-time dari HiveMQ
   void _handleIncomingMqttData(String topic, Map<String, dynamic> data) {
     if (topic == 'olivia/purifikasi/telemetry') {
       // Pastikan status sistem aktif mengikuti data terbaru dari IoT
-      if (data.containsKey('system_on'))
+      if (data.containsKey('system_on')) {
         systemOn.value = data['system_on'] ?? false;
+      }
 
       // --- Parsing Proses 1: Arang ---
       if (data['arang'] != null) {
@@ -89,8 +89,9 @@ class DashboardController extends GetxController {
           suhuArang.value = _toDouble(d1['suhu_arang']);
           _updateSparkline(sparkSuhuArang, suhuArang.value);
         }
-        if (d1.containsKey('volume_arang'))
+        if (d1.containsKey('volume_arang')) {
           arangVol.value = _toDouble(d1['volume_arang']);
+        }
       }
 
       // --- Parsing Proses 2: Bleaching ---
@@ -114,11 +115,13 @@ class DashboardController extends GetxController {
       // --- Parsing Proses 3: Validasi ---
       if (data['validasi'] != null) {
         var d3 = data['validasi'];
-        if (d3.containsKey('volume_validasi'))
+        if (d3.containsKey('volume_validasi')) {
           validasiVol.value = _toDouble(d3['volume_validasi']);
+        }
         if (d3.containsKey('turbidity')) ntu.value = _toDouble(d3['turbidity']);
-        if (d3.containsKey('viscosity'))
+        if (d3.containsKey('viscosity')) {
           viscosity.value = _toDouble(d3['viscosity']);
+        }
 
         // Parsing RGB untuk update label warna secara langsung
         bool colorChanged = false;
@@ -228,7 +231,7 @@ class DashboardController extends GetxController {
         Get.snackbar('Berhasil',
             'Sistem berhasil di${newState ? 'nyalakan' : 'matikan'}');
 
-        // 🌟 JALUR GANDA: Publikasikan juga perintah kontrol ke MQTT untuk respon cepat alat IoT
+        // JALUR GANDA: Publikasikan juga perintah kontrol ke MQTT untuk respon cepat alat IoT
         _mqttService.publish('olivia/control', {
           'system_on': newState,
           'timestamp': DateTime.now().millisecondsSinceEpoch

@@ -1,3 +1,4 @@
+// lib/routes/app_routes.dart
 import 'package:get/get.dart';
 import '../pages/auth/login_page.dart';
 import '../pages/auth/signup_page.dart';
@@ -11,6 +12,7 @@ import '../pages/history/history_page.dart';
 import '../pages/history/history_detail_page.dart';
 import '../pages/notifikasi/notifikasi_page.dart';
 import '../pages/info/info_page.dart';
+import '../state/dashboard_binding.dart'; // 🌟 TAMBAHAN: Import DashboardBinding
 
 class AppRoutes {
   static const splash = '/splash';
@@ -30,7 +32,11 @@ class AppRoutes {
     GetPage(name: splash, page: () => const SplashPage()),
     GetPage(name: login, page: () => const LoginPage()),
     GetPage(name: signup, page: () => const SignupPage()),
-    GetPage(name: dashboard, page: () => const DashboardPage()),
+    GetPage(
+      name: dashboard,
+      page: () => const DashboardPage(),
+      binding: DashboardBinding(), // 🌟 TAMBAHAN: Pasang binding di sini
+    ),
     GetPage(name: profile, page: () => const ProfilePage()),
     GetPage(name: arang, page: () => const ArangPage()),
     GetPage(name: bleaching, page: () => const BleachingPage()),

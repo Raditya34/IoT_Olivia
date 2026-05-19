@@ -1,16 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:get/get.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
-class MqttService {
+class MqttService extends GetxService {
   final String _host = 'a24e7a00b6d943c2be69eafa2c60943f.s1.eu.hivemq.cloud';
   final int _port = 8883;
   final String _username = 'Olivia_IoT';
   final String _password = 'Olivia12345';
-  final String _clientId =
-      'flutter_olivia_${DateTime.now().millisecondsSinceEpoch}';
+  late final String _clientId;
 
   late MqttServerClient _client;
   Function(String topic, Map<String, dynamic> data)? onMessageReceived;
@@ -18,7 +18,10 @@ class MqttService {
   // Listener didaftarkan SEKALI saja saat connect, bukan saat subscribe
   StreamSubscription? _subscription;
 
-  MqttService() {
+  @override
+  void onInit() {
+    super.onInit();
+    _clientId = 'flutter_olivia_${DateTime.now().millisecondsSinceEpoch}';
     _client = MqttServerClient.withPort(_host, _clientId, _port);
     _setupClient();
   }
@@ -98,5 +101,11 @@ class MqttService {
     _subscription?.cancel();
     _client.disconnect();
     print('[MQTT] Disconnected');
+  }
+
+  @override
+  void onClose() {
+    disconnect();
+    super.onClose();
   }
 }

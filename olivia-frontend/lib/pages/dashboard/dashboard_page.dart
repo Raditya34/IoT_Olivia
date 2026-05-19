@@ -8,12 +8,14 @@ import '../../widgets/app_scaffold.dart';
 import '../../widgets/progress_timeline.dart';
 import '../../state/dashboard_controller.dart';
 
-class DashboardPage extends StatelessWidget {
+// 🌟 PERUBAHAN: Mengubah StatelessWidget menjadi GetView<DashboardController>
+class DashboardPage extends GetView<DashboardController> {
   const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final DashboardController controller = Get.put(DashboardController());
+    // 🌟 PERUBAHAN: Baris Get.put() dihapus karena sudah di-inject lewat Binding.
+    // Anda sekarang bisa langsung memanggil variabel bawaan 'controller'.
 
     return AppScaffold(
       title: 'Dashboard',
@@ -40,7 +42,7 @@ class DashboardPage extends StatelessWidget {
                 )),
             const SizedBox(height: 24),
 
-            // 🌟 BARU: Monitoring Sensor Utama Keseluruhan Proses
+            // Monitoring Sensor Utama Keseluruhan Proses
             _sectionTitle(context, 'Ringkasan Monitoring Proses'),
             const SizedBox(height: 10),
             Obx(() => _processOverview(context, controller)),
@@ -52,7 +54,7 @@ class DashboardPage extends StatelessWidget {
             _processNavigation(context),
             const SizedBox(height: 24),
 
-            // 🌟 BARU: Hasil Verifikasi / Validasi Kualitas Akhir di Paling Bawah
+            // Hasil Verifikasi / Validasi Kualitas Akhir di Paling Bawah
             _sectionTitle(context, 'Hasil Verifikasi Akhir'),
             const SizedBox(height: 10),
             Obx(() => _validationResultCard(context, controller)),
@@ -137,7 +139,6 @@ class DashboardPage extends StatelessWidget {
 
   Widget _processOverview(
       BuildContext context, DashboardController controller) {
-    // Cek status aktif heater dari unit 2
     bool isHeaterOn = controller.bleachH1.value ||
         controller.bleachH2.value ||
         controller.bleachH3.value ||
@@ -344,7 +345,6 @@ class DashboardPage extends StatelessWidget {
     Color statusColor;
     IconData statusIcon;
 
-    // Evaluasi kriteria filtrasi berdasarkan data riil unit validasi akhir
     if (ntuVal < 50 && ntuVal > 0) {
       statusTitle = 'FILTRASI BERHASIL';
       statusDesc =

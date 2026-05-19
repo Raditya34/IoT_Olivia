@@ -33,9 +33,9 @@ class MqttSubscribe extends Command
         $password = env('MQTT_PASSWORD', 'Olivia12345');
 
         // Subscribe ke semua device dengan wildcard
-        $subscribeTopik = 'olivia/+/telemetry';
+        $subscribeTopik = env('MQTT_SUBSCRIBE_TOPIC', 'olivia/+/telemetry');
         // Re-publish payload nested ke topik yang didengar Flutter
-        $publishTopik   = 'olivia/purifikasi/telemetry';
+        $publishTopik   = env('MQTT_PUBLISH_TOPIC', 'olivia/purifikasi/telemetry');
 
         $this->info("Menghubungkan ke $server:$port ...");
 
