@@ -31,7 +31,9 @@ class ProcessHistory extends Model
         return $this->belongsTo(User::class);
     }
 
-    // Get all history for current cycle
+    /**
+     * Mengambil semua log history berdasarkan siklus terbaru (Siklus Aktif)
+     */
     public static function getLatestCycle($userId)
     {
         $latestCycle = self::where('user_id', $userId)
@@ -40,7 +42,7 @@ class ProcessHistory extends Model
 
         return self::where('user_id', $userId)
             ->where('cycle_number', $latestCycle)
-            ->orderBy('stage')
+            ->orderBy('id', 'asc') // FIX: Urutkan kronologis berdasarkan ID data masuk, bukan alfabet stage
             ->get();
     }
 }

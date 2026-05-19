@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\Notification;
 use App\Models\ProcessHistory;
 use App\Models\ProcessTimer;
+use App\Models\Esp1Arang;
+use App\Models\Esp2Bleaching;
+use App\Models\Esp3Validasi;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -32,7 +35,7 @@ class NotificationService
     }
 
     /**
-     * Check & send notifikasi berdasarkan waktu
+     * Check & send notifikasi berdasarkan waktu + Catat Sensor ke History
      */
     public static function checkAndSendNotifications($userId)
     {
@@ -46,61 +49,78 @@ class NotificationService
         $systemStarted = Carbon::parse($timer->system_started_at);
         $elapsedMinutes = $now->diffInSeconds($systemStarted) / 60;
 
-        // Notifikasi 1: Menit 35 sistem jalan
+        // Notifikasi 1: Menit 35 sistem jalan (Proses Arang Dimulai)
         if ($elapsedMinutes >= 35 && !$timer->notif_arang_sent) {
             self::send($userId, 'arang', 'Arang', 'Tolong masukkan arang');
-            self::recordHistory($userId, 'arang', 'started');
-            $timer->update(['notif_arang_sent' => true, 'arang_started_at' => $now]);
+            self::add($userId, 'arang', 'started', 'Proses arang resmi dimulai.');
+
+            $timer->update([
+                'arang_started_at' => $now,
+                'notif_arang_sent' => true
+            ]);
         }
 
-        // Notifikasi 2: 3 jam setelah arang (atau 15 menit setelah bleaching nyala)
-        if ($timer->arang_started_at && !$timer->notif_bleaching_sent) {
-            $arangStarted = Carbon::parse($timer->arang_started_at);
-            $arangElapsed = $now->diffInSeconds($arangStarted) / 60;
+        // Notifikasi 2: Menit 45 (Arang Selesai -> Masuk Bleaching)
+        if ($elapsedMinutes >= 45 && !$timer->notif_bleaching_sent) {
+            // Ambil data sensor arang terakhir sebelum selesai
+            $lastArang = Esp1Arang::latest()->first();
+            $detailsArang = $lastArang
+                ? "Suhu Akhir: {$lastArang->suhu}°C | Volume: {$lastArang->volume}L"
+                : "Data sensor tidak terekam";
 
-            // 3 jam = 180 menit
-            if ($arangElapsed >= 180) {
-                self::send($userId, 'bleaching', 'Bleaching', 'Tolong masukkan bleaching');
-                self::recordHistory($userId, 'arang', 'completed');
-                self::recordHistory($userId, 'bleaching', 'started');
-                $timer->update(['notif_bleaching_sent' => true, 'bleaching_started_at' => $now]);
-            }
+            self::add($userId, 'arang', 'completed', $detailsArang);
+
+            self::send($userId, 'bleaching', 'Bleaching', 'Proses Bleaching Dimulai');
+            self::add($userId, 'bleaching', 'started', 'Sistem mengaktifkan aktuator bleaching.');
+
+            $timer->update([
+                'bleaching_started_at' => $now,
+                'notif_bleaching_sent' => true
+            ]);
         }
 
-        // Notifikasi 3: 4 jam 15 menit setelah bleaching
-        if ($timer->bleaching_started_at && !$timer->notif_validasi_sent) {
-            $bleachingStarted = Carbon::parse($timer->bleaching_started_at);
-            $bleachingElapsed = $now->diffInSeconds($bleachingStarted) / 60;
+        // Notifikasi 3: Menit 55 (Bleaching Selesai -> Masuk Validasi)
+        if ($elapsedMinutes >= 55 && !$timer->notif_validasi_sent) {
+            // Ambil data aktuator & sensor bleaching terakhir sebelum selesai
+            $lastBleach = Esp2Bleaching::latest()->first();
+            $detailsBleach = $lastBleach
+                ? "Suhu: {$lastBleach->suhu}°C | Motor: {$lastBleach->motor_ac_speed} RPM | Heater1: " . ($lastBleach->heater_1 ? 'ON':'OFF') . " | P1: " . ($lastBleach->pompa_1 ? 'ON':'OFF')
+                : "Data sensor tidak terekam";
 
-            // 4 jam 15 menit = 255 menit
-            if ($bleachingElapsed >= 255) {
-                self::send($userId, 'validasi', 'Validasi', 'Cek hasil validasi');
-                self::recordHistory($userId, 'bleaching', 'completed');
-                self::recordHistory($userId, 'validasi', 'started');
-                $timer->update(['notif_validasi_sent' => true, 'validasi_started_at' => $now]);
-            }
+            self::add($userId, 'bleaching', 'completed', $detailsBleach);
+
+            self::send($userId, 'validasi', 'Validasi', 'Silahkan lakukan validasi');
+            self::add($userId, 'validasi', 'started', 'Menunggu hasil pembacaan sensor validasi.');
+
+            $timer->update([
+                'validasi_started_at' => $now,
+                'notif_validasi_sent' => true
+            ]);
         }
 
-        // Notifikasi 4: 10 menit setelah validasi
-        if ($timer->validasi_started_at && !$timer->notif_selesai_sent) {
-            $validasiStarted = Carbon::parse($timer->validasi_started_at);
-            $validasiElapsed = $now->diffInSeconds($validasiStarted) / 60;
+        // Notifikasi 4: Menit 65 (Validasi Selesai -> Seluruh Siklus Selesai)
+        if ($elapsedMinutes >= 65 && !$timer->notif_selesai_sent) {
+            // Ambil data sensor kualitas validasi akhir
+            $lastValidasi = Esp3Validasi::latest()->first();
+            $detailsValidasi = $lastValidasi
+                ? "Vol: {$lastValidasi->volume}L | Turbidity: {$lastValidasi->turbidity} NTU | Viskositas: {$lastValidasi->viskositas} cPs | Warna: {$lastValidasi->warna}"
+                : "Data sensor tidak terekam";
 
-            if ($validasiElapsed >= 10) {
-                self::send($userId, 'selesai', 'Selesai', 'Selamat Proses Filtrasi Berhasil');
-                self::recordHistory($userId, 'validasi', 'completed');
-                self::recordHistory($userId, 'selesai', 'completed');
-                $timer->update(['notif_selesai_sent' => true]);
-            }
+            self::add($userId, 'validasi', 'completed', $detailsValidasi);
+
+            self::send($userId, 'selesai', 'Selesai', 'Proses produksi hari ini selesai');
+            self::add($userId, 'selesai', 'completed', 'Seluruh rangkaian siklus produksi berhasil diproses.');
+
+            $timer->update([
+                'notif_selesai_sent' => true
+            ]);
         }
     }
 
-    // ===== HISTORY PROSES =====
-
     /**
-     * Catat history proses
+     * Catat history proses ke database
      */
-    public static function recordHistory($userId, $stage, $status, $details = null)
+    public static function add($userId, $stage, $status, $details = null)
     {
         try {
             $latestCycle = ProcessTimer::where('user_id', $userId)

@@ -3,82 +3,55 @@ import 'package:get/get.dart';
 import '../../routes/app_routes.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/app_scaffold.dart';
-import '../../services/notification_service.dart';
+import '../../state/history_controller.dart';
 
-class HistoryPage extends StatefulWidget {
+class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
 
   @override
-  State<HistoryPage> createState() => _HistoryPageState();
-}
-
-class _HistoryPageState extends State<HistoryPage> {
-  final notificationService = NotificationService();
-  late Future<Map<String, dynamic>> _historyFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _historyFuture = notificationService.getProcessHistory();
-  }
-
-  Future<void> _refresh() async {
-    setState(() {
-      _historyFuture = notificationService.getProcessHistory();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    // Memanggil atau menginisialisasi HistoryController
+    final HistoryController controller = Get.put(HistoryController());
+
     return AppScaffold(
       title: 'Riwayat Proses',
       currentRoute: AppRoutes.history,
       child: RefreshIndicator(
-        onRefresh: _refresh,
-        child: FutureBuilder<Map<String, dynamic>>(
-          future: _historyFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                  child: CircularProgressIndicator(color: AppColors.teal));
-            }
-            if (snapshot.hasError ||
-                !snapshot.hasData ||
-                snapshot.data!.isEmpty) {
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: [
-                  SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-                  const Center(
-                    child: Column(
-                      children: [
-                        Icon(Icons.history_rounded,
-                            size: 64, color: Colors.grey),
-                        SizedBox(height: 12),
-                        Text('Belum ada riwayat proses',
-                            style: TextStyle(color: Colors.grey, fontSize: 16)),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            }
-
-            final groupedData = snapshot.data!;
-            final cycleNumbers = groupedData.keys.toList()
-              ..sort((a, b) => int.parse(b).compareTo(int.parse(a)));
-
-            return ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: cycleNumbers.length,
-              itemBuilder: (context, index) {
-                final cycleNumber = cycleNumbers[index];
-                final records = List.from(groupedData[cycleNumber]);
-                return _cycleCard(context, cycleNumber, records);
-              },
+        onRefresh: () => controller.fetchHistoryData(),
+        child: Obx(() {
+          if (controller.isLoading.value) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.teal),
             );
-          },
-        ),
+          }
+
+          if (controller.historyData.isEmpty) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                SizedBox(height: 200),
+                Center(
+                  child: Text(
+                    'Belum ada riwayat proses pembakaran.',
+                    style: TextStyle(color: Colors.grey, fontSize: 15),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          final cycleNumbers = controller.historyData.keys.toList();
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: cycleNumbers.length,
+            itemBuilder: (context, index) {
+              final cycleNumber = cycleNumbers[index];
+              final records = List.from(controller.historyData[cycleNumber]!);
+              return _cycleCard(context, cycleNumber, records);
+            },
+          );
+        }),
       ),
     );
   }

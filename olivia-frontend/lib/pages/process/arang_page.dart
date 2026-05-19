@@ -29,7 +29,7 @@ class ArangPage extends StatelessWidget {
 
           // Monitoring Suhu Tungku 1
           Obx(() => SensorCard(
-                label: 'Suhu Pemanasan 1',
+                label: 'Suhu Pemanasan Arang',
                 value: controller.suhuArang.value.toStringAsFixed(1),
                 unit: '°C',
                 icon: Icons.thermostat_rounded,
@@ -39,25 +39,13 @@ class ArangPage extends StatelessWidget {
               )),
           const SizedBox(height: 14),
 
-          // Monitoring Suhu Bleaching (perbandingan)
-          Obx(() => SensorCard(
-                label: 'Suhu Bleaching',
-                value: controller.suhuBleaching.value.toStringAsFixed(1),
-                unit: '°C',
-                icon: Icons.thermostat_auto_rounded,
-                spark: controller.suhuBleaching.value > 0
-                    ? controller.sparkSuhuBleaching
-                    : [0.0].obs,
-              )),
-          const SizedBox(height: 20),
-
           Text('Volume Penampung Arang', style: AppText.h3(context)),
           const SizedBox(height: 12),
 
-          // Monitoring Volume Validasi
+          // Monitoring Volume Arang
           Obx(() => SensorCard(
-                label: 'Volume Validasi',
-                value: controller.validasiVol.value.toStringAsFixed(1),
+                label: 'Volume Arang Aktif',
+                value: controller.arangVol.value.toStringAsFixed(1),
                 unit: 'L',
                 icon: Icons.opacity_rounded,
                 spark: [0.0].obs,

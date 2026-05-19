@@ -3,9 +3,9 @@ import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
 class MqttService {
-  final String _host = 'ff0669f1.ala.asia-southeast1.emqxsl.com';
+  final String _host = 'a24e7a00b6d943c2be69eafa2c60943f.s1.eu.hivemq.cloud ';
   final int _port = 8883;
-  final String _username = 'Olivia_1';
+  final String _username = 'Olivia_IoT';
   final String _password = 'Olivia12345';
   final String _clientId =
       'flutter_olivia_${DateTime.now().millisecondsSinceEpoch}';

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class HistoryRecord {
   final String id;
   final String stage; // arang, bleaching, validasi, selesai
-  final String status; // started, completed, dll
+  final String status; // started, completed
   final DateTime time;
   final String? details;
   final int cycleNumber;
@@ -52,11 +52,12 @@ class HistoryRecord {
       id: json['id']?.toString() ?? '',
       stage: stageStr,
       status: json['status'] ?? '',
+      // FIX: Menggunakan created_at sesuai respon database postgresql backend
       time: json['created_at'] != null
           ? DateTime.parse(json['created_at']).toLocal()
           : DateTime.now(),
-      details: json['details'],
-      cycleNumber: json['cycle_number'] ?? 1,
+      details: json['details']?.toString(),
+      cycleNumber: int.tryParse(json['cycle_number'].toString()) ?? 1,
       icon: iconData,
       color: colorData,
     );

@@ -12,14 +12,14 @@ use App\Models\Esp3Validasi;
 class MqttSubscribe extends Command
 {
     protected $signature   = 'mqtt:subscribe';
-    protected $description = 'Listen data dari EMQX Cloud untuk 3 ESP32';
+    protected $description = 'Listen data dari HiveMQ Cloud untuk 3 ESP32';
 
     public function handle()
     {
-        $server   = env('MQTT_HOST', 'ff0669f1.ala.asia-southeast1.emqxsl.com');
+        $server   = env('MQTT_HOST', 'a24e7a00b6d943c2be69eafa2c60943f.s1.eu.hivemq.cloud');
         $port     = (int) env('MQTT_PORT', 8883);
         $clientId = env('MQTT_CLIENT_ID', 'laravel_sub') . '_' . uniqid();
-        $username = env('MQTT_USERNAME', 'Olivia_1');
+        $username = env('MQTT_USERNAME', 'Olivia_IoT');
         $password = env('MQTT_PASSWORD', 'Olivia12345');
         $topic    = env('MQTT_TOPIC', 'olivia/+/telemetry');
 

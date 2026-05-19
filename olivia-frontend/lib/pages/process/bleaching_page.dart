@@ -24,7 +24,7 @@ class BleachingPage extends StatelessWidget {
           _hero(context),
           const SizedBox(height: 18),
           Obx(() => SensorCard(
-                label: 'Suhu Tabung Bleaching',
+                label: 'Suhu Bleaching',
                 value: controller.suhuBleaching.value.toStringAsFixed(1),
                 unit: '°C',
                 icon: Icons.thermostat_auto_rounded,

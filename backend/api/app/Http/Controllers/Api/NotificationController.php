@@ -68,12 +68,15 @@ class NotificationController extends Controller
         return response()->json(['message' => 'OK']);
     }
 
+    /**
+     * Mengambil seluruh riwayat proses produksi yang dikelompokkan berdasarkan nomor siklus
+     */
     public function getProcessHistory(Request $request)
     {
         $user = $request->user();
         $records = ProcessHistory::where('user_id', $user->id)
             ->orderBy('cycle_number', 'desc')
-            ->orderBy('stage')
+            ->orderBy('id', 'asc') // FIX: Urutkan berdasarkan id/waktu masuk, bukan alfabet nama stage
             ->get();
 
         $grouped = [];
@@ -87,6 +90,9 @@ class NotificationController extends Controller
         ]);
     }
 
+    /**
+     * Mengambil riwayat proses pada siklus aktif saat ini
+     */
     public function getCurrentCycleHistory(Request $request)
     {
         $user = $request->user();
