@@ -8,15 +8,12 @@ import '../../widgets/app_scaffold.dart';
 import '../../widgets/progress_timeline.dart';
 import '../../state/dashboard_controller.dart';
 
-// 🌟 PERUBAHAN: Mengubah StatelessWidget menjadi GetView<DashboardController>
+// 🌟 Menggunakan GetView agar otomatis terhubung ke DashboardBinding
 class DashboardPage extends GetView<DashboardController> {
   const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 🌟 PERUBAHAN: Baris Get.put() dihapus karena sudah di-inject lewat Binding.
-    // Anda sekarang bisa langsung memanggil variabel bawaan 'controller'.
-
     return AppScaffold(
       title: 'Dashboard',
       currentRoute: AppRoutes.dashboard,
@@ -87,6 +84,7 @@ class DashboardPage extends GetView<DashboardController> {
               children: [
                 Text('Warna: ${controller.warnaLabel.value}',
                     style: AppText.h3(context)),
+                const SizedBox(height: 4),
                 Text(
                   isGood
                       ? 'Kekeruhan Minyak sangat baik (Memenuhi Standar)'
@@ -118,6 +116,7 @@ class DashboardPage extends GetView<DashboardController> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Sistem Utama', style: AppText.h3(context)),
+              const SizedBox(height: 4),
               Text(
                 controller.systemOn.value ? 'Sistem Aktif' : 'Sistem Non-Aktif',
                 style: TextStyle(
@@ -165,9 +164,10 @@ class DashboardPage extends GetView<DashboardController> {
           const Divider(height: 20),
           GridView.count(
             crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2.4,
+            shrinkWrap: true, // 🌟 Mencegah error layout unbounded height
+            physics:
+                const NeverScrollableScrollPhysics(), // 🌟 Supaya scroll lancar di dalam ListView
+            childAspectRatio: 2.3,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
             children: [
@@ -265,7 +265,7 @@ class DashboardPage extends GetView<DashboardController> {
   Widget _processNavigation(BuildContext context) {
     return GridView.count(
       crossAxisCount: 3,
-      shrinkWrap: true,
+      shrinkWrap: true, // 🌟 Mencegah error layout
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 10,
       mainAxisSpacing: 10,
