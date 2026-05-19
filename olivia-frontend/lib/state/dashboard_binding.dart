@@ -6,6 +6,6 @@ class DashboardBinding extends Bindings {
   @override
   void dependencies() {
     // Memasukkan controller ke dalam memory GetX sebagai Singleton / Permanent instance
-    Get.lazyPut<DashboardController>(() => DashboardController());
+    Get.lazyPut<DashboardController>(() => DashboardController(), fenix: true);
   }
 }

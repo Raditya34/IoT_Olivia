@@ -35,7 +35,7 @@ class AppRoutes {
     GetPage(
       name: dashboard,
       page: () => const DashboardPage(),
-      binding: DashboardBinding(), // 🌟 TAMBAHAN: Pasang binding di sini
+      binding: DashboardBinding(),
     ),
     GetPage(name: profile, page: () => const ProfilePage()),
     GetPage(name: arang, page: () => const ArangPage()),
