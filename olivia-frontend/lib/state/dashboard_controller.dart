@@ -10,12 +10,12 @@ class DashboardController extends GetxController {
   var progressStep = 0.obs;
   var isLoading = true.obs;
 
-  // --- Variabel Proses 1 (Arang) ---
+  // --- Proses 1 (Arang) ---
   var suhuArang = 0.0.obs;
   var sparkSuhuArang = <double>[0.0].obs;
   var arangVol = 0.0.obs;
 
-  // --- Variabel Proses 2 (Bleaching) ---
+  // --- Proses 2 (Bleaching) ---
   var suhuBleaching = 0.0.obs;
   var sparkSuhuBleaching = <double>[0.0].obs;
   var bleachValve = false.obs;
@@ -28,7 +28,7 @@ class DashboardController extends GetxController {
   var bleachH4 = false.obs;
   var bleachSpeed = 0.obs;
 
-  // --- Variabel Proses 3 (Validasi / Filtrasi) ---
+  // --- Proses 3 (Validasi) ---
   var validasiVol = 0.0.obs;
   var ntu = 0.0.obs;
   var viscosity = 0.0.obs;
@@ -43,11 +43,8 @@ class DashboardController extends GetxController {
   void onInit() {
     super.onInit();
     fetchDashboardData();
-    // Jalankan pooling periodik jika sistem aktif untuk pemantauan real-time
     _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (systemOn.value) {
-        fetchDashboardData();
-      }
+      if (systemOn.value) fetchDashboardData();
     });
   }
 
@@ -63,21 +60,28 @@ class DashboardController extends GetxController {
         isLoading.value = true;
       }
 
-      final response = await _api.get('/dashboard/telemetry');
+      // FIX 1: endpoint diubah dari '/dashboard/telemetry' → '/dashboard'
+      // sesuai dengan route di api.php:
+      //   Route::get('/dashboard', [OliviaController::class, 'getDashboardData']);
+      final response = await _api.get('/dashboard');
 
       if (response != null && response['status'] == 'success') {
         final data = response['data'];
 
         systemOn.value = data['system_on'] ?? false;
 
-        // Parsing Data Proses 1: Arang
+        // --- Parsing Proses 1: Arang ---
         if (data['arang'] != null) {
           var d1 = data['arang'];
           suhuArang.value = _toDouble(d1['suhu_arang']);
           _updateSparkline(sparkSuhuArang, suhuArang.value);
+
+          // FIX 2: 'volume_arang' sesuai key dari OliviaController.php
+          // Backend mengirim: 'volume_arang' => $esp1->volume_arang
+          arangVol.value = _toDouble(d1['volume_arang']);
         }
 
-        // Parsing Data Proses 2: Bleaching
+        // --- Parsing Proses 2: Bleaching ---
         if (data['bleaching'] != null) {
           var d2 = data['bleaching'];
           suhuBleaching.value = _toDouble(d2['suhu_bleaching']);
@@ -94,21 +98,25 @@ class DashboardController extends GetxController {
           bleachSpeed.value = _toInt(d2['speed']);
         }
 
-        // Parsing Data Proses 3: Validasi (Filtrasi)
+        // --- Parsing Proses 3: Validasi ---
         if (data['validasi'] != null) {
           var d3 = data['validasi'];
-          validasiVol.value = _toDouble(d3['volume']);
+
+          // FIX 3: 'volume_validasi' sesuai key dari OliviaController.php
+          // Backend mengirim: 'volume_validasi' => $esp3->volume_validasi
+          // (bukan 'volume')
+          validasiVol.value = _toDouble(d3['volume_validasi']);
+
           ntu.value = _toDouble(d3['turbidity']);
           viscosity.value = _toDouble(d3['viscosity']);
           r.value = _toInt(d3['r']);
           g.value = _toInt(d3['g']);
           b.value = _toInt(d3['b']);
 
-          // Update label klasifikasi warna minyak otomatis
           warnaLabel.value = getOilColorLabel(r.value, g.value, b.value);
         }
 
-        // Hitung Progress Step Alur Kerja Aktual
+        // --- Hitung Progress Step ---
         if (validasiVol.value > 0 || ntu.value > 0) {
           progressStep.value = 2;
         } else if (suhuBleaching.value > 0 || bleachP1.value) {
@@ -118,7 +126,7 @@ class DashboardController extends GetxController {
         }
       }
     } catch (e) {
-      print("Dashboard Data Parsing Error: $e");
+      print("Dashboard fetch error: $e");
     } finally {
       isLoading.value = false;
     }
@@ -132,38 +140,29 @@ class DashboardController extends GetxController {
   Future<void> toggleSystem() async {
     final newState = !systemOn.value;
     systemOn.value = newState;
-
     try {
       final response = await _api.post('/control', {'system_on': newState});
-
       if (response != null && response['success'] == true) {
         Get.snackbar('Berhasil',
             'Sistem berhasil di${newState ? 'nyalakan' : 'matikan'}');
         fetchDashboardData();
       } else {
-        systemOn.value = !newState; // Rollback status
+        systemOn.value = !newState;
         Get.snackbar('Gagal', 'Gagal mengubah status kontrol sistem');
       }
     } catch (e) {
-      systemOn.value = !newState; // Rollback status
+      systemOn.value = !newState;
       Get.snackbar('Error', 'Terjadi kesalahan jaringan: $e');
     }
   }
 
-  // Fungsi Klasifikasi Range Kualitas Warna Minyak Goreng
   String getOilColorLabel(int r, int g, int b) {
     if (r == 0 && g == 0 && b == 0) return 'Menunggu Data...';
     int brightness = (r + g + b) ~/ 3;
-
-    if (brightness > 180 && b > 100) {
-      return 'Jernih (Sangat Layak)';
-    } else if (brightness > 120) {
-      return 'Agak Jernih (Cukup Layak)';
-    } else if (brightness > 60) {
-      return 'Coklat Kekuningan (Kurang Layak)';
-    } else {
-      return 'Coklat Kotor (Tidak Layak)';
-    }
+    if (brightness > 180 && b > 100) return 'Jernih (Sangat Layak)';
+    if (brightness > 120) return 'Agak Jernih (Cukup Layak)';
+    if (brightness > 60) return 'Coklat Kekuningan (Kurang Layak)';
+    return 'Coklat Kotor (Tidak Layak)';
   }
 
   double _toDouble(dynamic val) {
