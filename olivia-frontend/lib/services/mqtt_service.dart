@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
 class MqttService {
-  final String _host = 'a24e7a00b6d943c2be69eafa2c60943f.s1.eu.hivemq.cloud ';
+  final String _host = 'a24e7a00b6d943c2be69eafa2c60943f.s1.eu.hivemq.cloud';
   final int _port = 8883;
   final String _username = 'Olivia_IoT';
   final String _password = 'Olivia12345';
@@ -22,6 +23,7 @@ class MqttService {
     _client.logging(on: false);
     _client.keepAlivePeriod = 60;
     _client.secure = true;
+    _client.securityContext = SecurityContext.defaultContext;
     _client.onBadCertificate = (dynamic cert) => true;
 
     final connMess = MqttConnectMessage()
@@ -33,6 +35,7 @@ class MqttService {
 
   Future<bool> connect() async {
     try {
+      print('Connecting to HiveMQ Cloud..');
       await _client.connect();
       return _client.connectionStatus!.state == MqttConnectionState.connected;
     } catch (e) {
