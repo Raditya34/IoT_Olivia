@@ -63,6 +63,26 @@ class OliviaController extends Controller
         }
     }
 
+    public function getHistory()
+{
+    try {
+        $arang     = Esp1Arang::latest()->take(50)->get();
+        $bleaching = Esp2Bleaching::latest()->take(50)->get();
+        $validasi  = Esp3Validasi::latest()->take(50)->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'arang'     => $arang,
+                'bleaching' => $bleaching,
+                'validasi'  => $validasi,
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+    }
+}
+
     /**
      * STORE DATA DARI WEBHOOK / API POST
      */

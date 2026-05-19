@@ -69,7 +69,7 @@ class DashboardController extends GetxController {
     if (isConnected) {
       print('MQTT Connected Successfully to HiveMQ Cloud!');
       // Subscribe ke topik monitoring data alat IoT Anda
-      _mqttService.subscribe('iot/purifikasi/telemetry');
+      _mqttService.subscribe('olivia/purifikasi/telemetry');
     } else {
       print('MQTT Connection Failed!');
     }
@@ -77,7 +77,7 @@ class DashboardController extends GetxController {
 
   // 🌟 BARU: Fungsi untuk memproses data real-time dari HiveMQ
   void _handleIncomingMqttData(String topic, Map<String, dynamic> data) {
-    if (topic == 'iot/purifikasi/telemetry') {
+    if (topic == 'olivia/purifikasi/telemetry') {
       // Pastikan status sistem aktif mengikuti data terbaru dari IoT
       if (data.containsKey('system_on'))
         systemOn.value = data['system_on'] ?? false;
@@ -229,7 +229,7 @@ class DashboardController extends GetxController {
             'Sistem berhasil di${newState ? 'nyalakan' : 'matikan'}');
 
         // 🌟 JALUR GANDA: Publikasikan juga perintah kontrol ke MQTT untuk respon cepat alat IoT
-        _mqttService.publish('iot/purifikasi/kontrol/cmd', {
+        _mqttService.publish('olivia/control', {
           'system_on': newState,
           'timestamp': DateTime.now().millisecondsSinceEpoch
         });
