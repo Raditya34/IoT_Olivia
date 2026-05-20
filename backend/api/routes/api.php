@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\NotificationController;
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 
+Route::get('/dashboard', [OliviaController::class, 'getDashboardData']);
+
 // --- 2. Protected Flutter Routes (Harus Login / Pakai Token) ---
 Route::middleware('auth:sanctum')->group(function () {
 

@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io'; // Tambahkan ini untuk handle SocketException
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../storage/auth_storage.dart';
 import '../network/api_config.dart';
@@ -7,21 +7,22 @@ import '../network/api_config.dart';
 class ApiService {
   static String baseUrl = ApiConfig.baseUrl;
 
-  /// Ambil header dengan token autentikasi
+  /// Ambil header dengan token autentikasi dari storage
   Future<Map<String, String>> _authHeaders() async {
     final token = await AuthStorage.getToken();
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'Authorization': 'Bearer ${token ?? ""}', // Cegah null token
+      'Authorization':
+          'Bearer ${token ?? ""}', // Mengirimkan Bearer Token ke Laravel
     };
   }
 
-  /// Handle respon dari server
+  /// Handle respon dari server secara terpusat
   dynamic _handleResponse(http.Response response) {
-    // Jika sesi habis (Token salah/expired)
+    // Jika sesi habis atau token tidak valid (401 / 403)
     if (response.statusCode == 401 || response.statusCode == 403) {
-      AuthStorage.clear();
+      AuthStorage.clear(); // Bersihkan token yang tidak valid
       throw Exception('Sesi telah habis, silakan login kembali.');
     }
 
@@ -30,28 +31,25 @@ class ApiService {
       return jsonDecode(response.body);
     }
 
-    // Jika terjadi error (400, 404, 500, dll)
+    // Jika terjadi error dari server (400, 500, dll)
     try {
       final errorBody = jsonDecode(response.body);
-      throw Exception(errorBody['message'] ??
-          errorBody['error'] ??
-          'Server Error: ${response.statusCode}');
+      throw Exception(errorBody['message'] ?? 'Terjadi kesalahan server.');
     } catch (e) {
-      // Jika body bukan JSON (misal Railway kirim HTML error)
-      throw Exception('Terjadi kesalahan pada server (${response.statusCode})');
+      throw Exception('Server error dengan status: ${response.statusCode}');
     }
   }
 
-  /// METHOD GET
+  /// METHOD GET (DENGAN AUTH) - Kunci Perbaikan Utama 🔑
   Future<dynamic> get(String endpoint) async {
     try {
       final response = await http
           .get(
             Uri.parse('$baseUrl$endpoint'),
-            headers: await _authHeaders(),
+            headers:
+                await _authHeaders(), // <-- WAJIB ADA AGAR TIDAK REJECTED 401
           )
-          .timeout(const Duration(
-              seconds: 15)); // Tambahkan timeout agar tidak loading selamanya
+          .timeout(const Duration(seconds: 15));
 
       return _handleResponse(response);
     } on SocketException {
@@ -80,7 +78,7 @@ class ApiService {
     }
   }
 
-  /// METHOD POST (TANPA AUTH - LOGIN/REGISTER)
+  /// METHOD POST (TANPA AUTH - UNTUK LOGIN / REGISTER)
   Future<dynamic> postPublic(String endpoint, Map<String, dynamic> body) async {
     try {
       final response = await http
@@ -96,7 +94,7 @@ class ApiService {
 
       return _handleResponse(response);
     } on SocketException {
-      throw Exception('Gagal terhubung ke server. Periksa sinyal anda.');
+      throw Exception('Tidak ada koneksi internet.');
     } catch (e) {
       rethrow;
     }
