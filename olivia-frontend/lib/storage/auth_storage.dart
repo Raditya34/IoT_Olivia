@@ -1,48 +1,46 @@
+// lib/storage/auth_storage.dart
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 class AuthStorage {
-  static const _tokenKey = 'auth_token';
-  static const _userKey = 'user_profile';
+  static const String _tokenKey = 'token';
+  static const String _nameKey = 'user_name';
+  static const String _emailKey = 'user_email';
 
-  /// Simpan Token
-  static Future<void> saveToken(String token) async {
+  /// Menyimpan data autentikasi setelah login
+  static Future<void> saveAuthData({
+    required String token,
+    required String name,
+    required String email,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
+    await prefs.setString(_nameKey, name);
+    await prefs.setString(_emailKey, email);
   }
 
-  /// Simpan Data Profil User (Nama, Email, dll)
-  static Future<void> saveUser(Map<String, dynamic> userData) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_userKey, jsonEncode(userData));
-  }
-
-  /// Ambil Token
+  /// Mengambil token untuk Authorization Header
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_tokenKey);
   }
 
-  /// Ambil Data Profil User
-  static Future<Map<String, dynamic>?> getUser() async {
+  /// Mengambil Nama User
+  static Future<String?> getName() async {
     final prefs = await SharedPreferences.getInstance();
-    final userStr = prefs.getString(_userKey);
-    if (userStr != null) {
-      return jsonDecode(userStr);
-    }
-    return null;
+    return prefs.getString(_nameKey);
   }
 
-  /// Cek apakah user sudah login
-  static Future<bool> isLoggedIn() async {
-    final token = await getToken();
-    return token != null && token.isNotEmpty;
+  /// Mengambil Email User
+  static Future<String?> getEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_emailKey);
   }
 
-  /// Hapus semua data (Logout)
+  /// Menghapus semua data session saat logout atau token expired
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
-    await prefs.remove(_userKey);
+    await prefs.remove(_nameKey);
+    await prefs.remove(_emailKey);
   }
 }
