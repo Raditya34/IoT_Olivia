@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'theme/app_theme.dart';
 import 'routes/app_routes.dart';
-
-// Import ini dihapus karena sudah tidak dipakai di main.dart:
-// import 'models/history_record.dart';
-// import 'pages/history/history_detail_page.dart';
+import 'services/mqtt_service.dart'; // 🌟 WAJIB DITAMBAHKAN: Import MqttService
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🌟 WAJIB DITAMBAHKAN: Mendaftarkan MqttService secara permanen
+  // Ini memastikan MQTT berjalan di background sebagai Singleton dan tidak double connection
+  Get.put(MqttService(), permanent: true);
+
   runApp(const OliviaApp());
 }
 
@@ -21,16 +23,8 @@ class OliviaApp extends StatelessWidget {
       title: 'OLIVIA',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-
-      // Gunakan initialRoute dari AppRoutes
       initialRoute: AppRoutes.splash,
-
-      // Cukup gunakan rute standar yang sudah kamu definisikan di AppRoutes
-      // GetX akan otomatis mengonversi ini dan membawa arguments-nya dengan aman
       getPages: AppRoutes.pages,
-
-      // Blok onGenerateRoute DIHAPUS karena GetX sudah pintar
-      // membawa data (Get.arguments) antar halaman.
     );
   }
 }

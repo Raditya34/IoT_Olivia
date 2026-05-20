@@ -14,6 +14,8 @@ class DashboardPage extends GetView<DashboardController> {
 
   @override
   Widget build(BuildContext context) {
+    final controller = Get.find<
+        DashboardController>(); // 🌟 Pastikan controller sudah terinisialisasi
     return AppScaffold(
       title: 'Dashboard',
       currentRoute: AppRoutes.dashboard,
