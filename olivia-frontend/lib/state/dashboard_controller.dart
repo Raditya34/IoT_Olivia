@@ -15,6 +15,8 @@ class DashboardController extends GetxController {
   var systemOn = false.obs;
   var isLoading = true.obs;
   var progressStep = 0.obs;
+  var isConnected = false.obs;
+  var connectionMessage = "Terhubung".obs;
 
   // --- UNIT 1: PROSES ARANG ---
   var suhuArang = 0.0.obs;
@@ -48,17 +50,27 @@ class DashboardController extends GetxController {
   var statusLayak = "Menunggu Analisa...".obs;
 
   StreamSubscription? _mqttSubscription;
+  StreamSubscription? _connectionSubscription;
 
   @override
   void onInit() {
     super.onInit();
+    _setupConnectionListener();
     fetchDashboardData();
     _initMqttListen();
+  }
+
+  void _setupConnectionListener() {
+    _connectionSubscription = _mqttService.isConnected.listen((isConnected) {
+      this.isConnected.value = isConnected;
+      connectionMessage.value = isConnected ? "Terhubung" : "Tidak Terhubung";
+    });
   }
 
   @override
   void onClose() {
     _mqttSubscription?.cancel();
+    _connectionSubscription?.cancel();
     super.onClose();
   }
 
@@ -99,12 +111,35 @@ class DashboardController extends GetxController {
   // TOGGLE ON/OFF UTAMA (Dikirim ke Laravel)
   // ===========================================================================
   Future<void> toggleSystemStatus() async {
+    if (!isConnected.value) {
+      Get.snackbar(
+        "Koneksi Gagal",
+        "MQTT tidak terhubung dengan sistem. Periksa koneksi internet Anda.",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.withOpacity(0.8),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
+
     try {
       bool targetStatus = !systemOn.value;
 
+      // Publish ke MQTT terlebih dahulu untuk response real-time
+      _mqttService.publish('olivia/control/request', {
+        'command': 'system_toggle',
+        'system_on': targetStatus,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      // Kirim juga ke API untuk backup/logging
       final response = await _api.post('/control', {
         'system_on': targetStatus,
-      });
+      }).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw TimeoutException('API request timeout'),
+      );
 
       // Deteksi kesuksesan post API
       bool isSuccess = false;
@@ -115,18 +150,38 @@ class DashboardController extends GetxController {
 
       if (isSuccess) {
         systemOn.value = targetStatus;
+        Get.snackbar(
+          "Sukses",
+          targetStatus ? "Sistem dihidupkan" : "Sistem dimatikan",
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green.withOpacity(0.8),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
         if (!targetStatus) {
           _resetAllRealtimeMetrics();
         }
+      } else {
+        throw Exception('Server returned unsuccessful status');
       }
+    } on TimeoutException {
+      debugPrint("Error: API request timeout");
+      Get.snackbar(
+        "Request Timeout",
+        "Perintah kontrol tidak merespons dalam waktu yang ditentukan.",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.orange.withOpacity(0.8),
+        colorText: Colors.white,
+      );
     } catch (e) {
       debugPrint("Error Toggle System Control: $e");
       Get.snackbar(
         "Koneksi Gagal",
-        "Gagal mengirimkan perintah kontrol ke sistem.",
+        "Gagal mengirimkan perintah kontrol ke sistem.\nDetail: ${e.toString().length > 50 ? e.toString().substring(0, 50) + '...' : e.toString()}",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red.withOpacity(0.8),
         colorText: Colors.white,
+        duration: const Duration(seconds: 4),
       );
     }
   }

@@ -19,6 +19,10 @@ class MqttService extends GetxService {
 
   Stream<Map<String, dynamic>> get payloadStream => _payloadController.stream;
 
+  // Observable untuk tracking status koneksi
+  final isConnected = false.obs;
+  final reconnectAttempts = 0.obs;
+
   // Listener didaftapkan SEKALI saja saat connect, bukan saat subscribe
   StreamSubscription? _subscription;
 
@@ -54,6 +58,9 @@ class MqttService extends GetxService {
           _client.connectionStatus!.state == MqttConnectionState.connected;
 
       if (connected) {
+        isConnected.value = true;
+        reconnectAttempts.value = 0;
+
         // Daftarkan listener SEKALI di sini, bukan di dalam subscribe()
         _subscription = _client.updates!
             .listen((List<MqttReceivedMessage<MqttMessage>> messages) {
@@ -70,13 +77,41 @@ class MqttService extends GetxService {
             }
           }
         });
-        print('[MQTT] Connected!');
+
+        // AUTO-SUBSCRIBE ke topic utama setelah connect berhasil
+        subscribe('olivia/telemetry');
+        subscribe('olivia/system');
+        subscribe('olivia/control/response');
+
+        print('[MQTT] Connected and subscribed to topics!');
+      } else {
+        throw Exception('Failed to establish MQTT connection');
       }
       return connected;
     } catch (e) {
       print('[MQTT] Connection Error: $e');
+      isConnected.value = false;
       _client.disconnect();
+      _attemptReconnect();
       return false;
+    }
+  }
+
+  /// Auto-reconnect dengan exponential backoff
+  void _attemptReconnect() {
+    if (reconnectAttempts.value < 5) {
+      reconnectAttempts.value++;
+      final delay = Duration(seconds: 5 * reconnectAttempts.value);
+      print(
+          '[MQTT] Attempting reconnect in ${delay.inSeconds}s... (Attempt ${reconnectAttempts.value})');
+
+      Future.delayed(delay, () {
+        if (!isConnected.value) {
+          connect();
+        }
+      });
+    } else {
+      print('[MQTT] Max reconnection attempts reached');
     }
   }
 
@@ -100,6 +135,8 @@ class MqttService extends GetxService {
 
   void _onDisconnected() {
     print('[MQTT] Disconnected from broker');
+    isConnected.value = false;
+    _attemptReconnect();
   }
 
   void disconnect() {

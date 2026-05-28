@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../routes/app_routes.dart';
 import '../../services/api_service.dart';
+import '../../services/mqtt_service.dart';
 import '../../storage/auth_storage.dart';
 
 class AuthGate extends StatefulWidget {
@@ -41,6 +42,15 @@ class _AuthGateState extends State<AuthGate> {
 
       // Jika response sukses, arahkan ke dashboard
       if (response != null) {
+        // Hubungkan MQTT sebelum masuk dashboard
+        final mqttService = Get.find<MqttService>();
+        final mqttConnected = await mqttService.connect();
+
+        if (!mqttConnected) {
+          debugPrint(
+              '[AUTH] Warning: MQTT connection failed, but proceeding to dashboard');
+        }
+
         Get.offAllNamed(AppRoutes.dashboard);
       } else {
         throw Exception('Unauthorized');
