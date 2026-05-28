@@ -10,9 +10,6 @@ use App\Models\MasterControl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
-// Pastikan library mqtt laravel sudah terinstall (misal: php-mqtt/laravel-client)
-use PhpMqtt\Client\Facades\MQTT;
-
 class OliviaController extends Controller
 {
     /**
@@ -34,7 +31,7 @@ class OliviaController extends Controller
 
                     'arang' => [
                         'suhu_arang'   => $esp1 ? (float)$esp1->suhu_arang : 0.0,
-                        'volume_arang' => $esp1 ? (float)$esp1->volume_arang : 0.0 // Key Tepat
+                        'volume_arang' => $esp1 ? (float)$esp1->volume_arang : 0.0
                     ],
 
                     'bleaching' => [
@@ -51,7 +48,7 @@ class OliviaController extends Controller
                     ],
 
                     'validasi' => [
-                        'volume_validasi' => $esp3 ? (float)$esp3->volume_validasi : 0.0, // Key Tepat
+                        'volume_validasi' => $esp3 ? (float)$esp3->volume_validasi : 0.0,
                         'turbidity'       => $esp3 ? (float)$esp3->turbidity : 0.0,
                         'viscosity'       => $esp3 ? (float)$esp3->viscosity : 0.0,
                         'r'               => $esp3 ? (int)$esp3->r : 0,
@@ -93,7 +90,6 @@ class OliviaController extends Controller
 
     /**
      * SIMPAN DATA DARI ESP32 VIA HTTP POST
-     * (Menggantikan peran script listener yang looping)
      */
     public function storeEsp1(Request $request) {
         try {
@@ -147,7 +143,7 @@ class OliviaController extends Controller
     }
 
     /**
-     * TOGGLE SYSTEM ON/OFF FROM FLUTTER -> DATABASE -> HIVEMQ -> ESP32
+     * TOGGLE SYSTEM ON/OFF FROM FLUTTER -> DATABASE
      */
     public function updateControl(Request $request) {
         try {
@@ -155,18 +151,9 @@ class OliviaController extends Controller
             if ($request->has('system_on')) {
                 $status = filter_var($request->system_on, FILTER_VALIDATE_BOOLEAN);
 
-                // 1. Simpan ke Database
+                // 1. Simpan ke Database (Aman dari 500 Error)
                 $master->system_on = $status;
                 $master->save();
-
-                // 2. Tembak Perintah Langsung ke MQTT agar ESP32 bereaksi
-                try {
-                    $payload = json_encode(['system_on' => $status]);
-                    // TOPIC HARUS SAMA DENGAN topic_sub_control DI ESP32
-                    MQTT::publish('olivia/control', $payload);
-                } catch (\Exception $e) {
-                    Log::error("Gagal Publish MQTT (Control): " . $e->getMessage());
-                }
             }
             return response()->json(['status' => 'success', 'data' => $master], 200);
         } catch (\Exception $e) {
