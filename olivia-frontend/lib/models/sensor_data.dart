@@ -1,7 +1,10 @@
+// lib/models/sensor_data.dart
+
 class EspData {
   final double suhuArang;
+  final double volumeArang; // Sudah spesifik
   final double suhuBleaching;
-  final double volume;
+  final double volumeValidasi; // Sudah spesifik
   final double turbidity;
   final double viscosity;
   final int r;
@@ -10,8 +13,9 @@ class EspData {
 
   EspData({
     required this.suhuArang,
+    required this.volumeArang,
     required this.suhuBleaching,
-    required this.volume,
+    required this.volumeValidasi,
     required this.turbidity,
     required this.viscosity,
     required this.r,
@@ -19,25 +23,32 @@ class EspData {
     required this.b,
   });
 
-  // Untuk mengolah data dari API Laravel / MQTT payload secara konsisten
+  // Memetakan data dari API Laravel / Payload MQTT gabungan secara presisi
   factory EspData.fromJson(Map<String, dynamic> json) {
+    // Ambil sub-object jika ada, jika tidak ada (struktur flat) gunakan fallback ke root json
+    final arang = json['arang'] ?? json;
+    final bleaching = json['bleaching'] ?? json;
+    final validasi = json['validasi'] ?? json;
+
     return EspData(
-      suhuArang: (json['suhu_arang'] ?? 0.0).toDouble(),
-      suhuBleaching: (json['suhu_bleaching'] ?? 0.0).toDouble(),
-      volume: (json['volume'] ?? 0.0).toDouble(),
-      turbidity: (json['turbidity'] ?? 0.0).toDouble(),
-      viscosity: (json['viscosity'] ?? 0.0).toDouble(),
-      r: json['r'] ?? 0,
-      g: json['g'] ?? 0,
-      b: json['b'] ?? 0,
+      suhuArang: (arang['suhu_arang'] ?? 0.0).toDouble(),
+      volumeArang: (arang['volume_arang'] ?? 0.0).toDouble(),
+      suhuBleaching: (bleaching['suhu_bleaching'] ?? 0.0).toDouble(),
+      volumeValidasi: (validasi['volume_validasi'] ?? 0.0).toDouble(),
+      turbidity: (validasi['turbidity'] ?? 0.0).toDouble(),
+      viscosity: (validasi['viscosity'] ?? 0.0).toDouble(),
+      r: validasi['r'] ?? 0,
+      g: validasi['g'] ?? 0,
+      b: validasi['b'] ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'suhu_arang': suhuArang,
+      'volume_arang': volumeArang,
       'suhu_bleaching': suhuBleaching,
-      'volume': volume,
+      'volume_validasi': volumeValidasi,
       'turbidity': turbidity,
       'viscosity': viscosity,
       'r': r,

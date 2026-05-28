@@ -14,8 +14,12 @@ class MqttService extends GetxService {
 
   late MqttServerClient _client;
   Function(String topic, Map<String, dynamic> data)? onMessageReceived;
+  final StreamController<Map<String, dynamic>> _payloadController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
-  // Listener didaftarkan SEKALI saja saat connect, bukan saat subscribe
+  Stream<Map<String, dynamic>> get payloadStream => _payloadController.stream;
+
+  // Listener didaftapkan SEKALI saja saat connect, bukan saat subscribe
   StreamSubscription? _subscription;
 
   @override
@@ -60,6 +64,7 @@ class MqttService extends GetxService {
             try {
               final Map<String, dynamic> parsed = jsonDecode(pt);
               onMessageReceived?.call(msg.topic, parsed);
+              _payloadController.add(parsed);
             } catch (e) {
               print('[MQTT] Error parsing payload: $e');
             }
@@ -105,6 +110,8 @@ class MqttService extends GetxService {
 
   @override
   void onClose() {
+    _subscription?.cancel();
+    _payloadController.close();
     disconnect();
     super.onClose();
   }
