@@ -15,13 +15,12 @@ use App\Http\Controllers\Api\NotificationController;
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 
-// ⚠️ Perbaikan: Mengeluarkan route dashboard public yang double agar tidak bentrok dengan middleware
 
 // --- 2. Protected Flutter Routes (Harus Login / Pakai Token Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Dashboard & Control
-    Route::get('/dashboard', [OliviaController::class, 'getDashboardData']);
+    // DIUBAH: Disesuaikan dengan pemanggilan Flutter get('/dashboard/telemetry')
+    Route::get('/dashboard/telemetry', [OliviaController::class, 'getDashboardData']);
     Route::post('/control', [OliviaController::class, 'updateControl']);
 
     // Fitur Tambahan (Opsional)
