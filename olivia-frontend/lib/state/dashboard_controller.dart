@@ -19,7 +19,7 @@ class DashboardController extends GetxController {
   // --- UNIT 1: PROSES ARANG ---
   var suhuArang = 0.0.obs;
   var sparkSuhuArang = <double>[0.0].obs;
-  var arangVol = 0.0.obs; // Untuk volume_arang
+  var arangVol = 0.0.obs;
 
   // --- UNIT 2: PROSES BLEACHING ---
   var suhuBleaching = 0.0.obs;
@@ -35,13 +35,17 @@ class DashboardController extends GetxController {
   var bleachSpeed = 0.obs;
 
   // --- UNIT 3: PROSES VALIDASI (AKHIR) ---
-  var validasiVol = 0.0.obs; // Untuk volume_validasi agar tidak mismatch
+  var validasiVol = 0.0.obs;
   var ntu = 0.0.obs;
   var viscosity = 0.0.obs;
   var r = 0.obs;
   var g = 0.obs;
   var b = 0.obs;
   var warnaLabel = "Menunggu Analisa...".obs;
+
+  // --- VARIABEL FUZZY LOGIC (BARU DITAMBAHKAN SESUAI ESP32) ---
+  var kelayakan = 0.0.obs;
+  var statusLayak = "Menunggu Analisa...".obs;
 
   StreamSubscription? _mqttSubscription;
 
@@ -59,15 +63,30 @@ class DashboardController extends GetxController {
   }
 
   // ===========================================================================
-  // HTTP API FETCH (sinkronisasi awal / refresh manual dari Laravel)
+  // HTTP API FETCH (Sinkronisasi awal dari Laravel)
   // ===========================================================================
   Future<void> fetchDashboardData() async {
     try {
       isLoading.value = true;
+
+      // 1. Ambil data dari endpoint /dashboard
       final response = await _api.get('/dashboard');
-      if (response.statusCode == 200 && response.data['status'] == 'success') {
-        final telemetry = response.data['data'];
-        _parseAndUpdates(telemetry);
+
+      // 2. Cek apakah response sukses (Status Code 200) dan data tidak null
+      if (response != null && response.statusCode == 200) {
+        // 3. Pastikan response memiliki struktur ['status'] == 'success'
+        if (response.data != null && response.data['status'] == 'success') {
+          // 4. Ambil sub-object 'data' yang berisi 'arang', 'bleaching', dan 'validasi'
+          final telemetry = response.data['data'];
+
+          if (telemetry != null) {
+            // 5. Alirkan data JSON tersebut ke fungsi inti parser bawaan Anda
+            _parseAndUpdates(Map<String, dynamic>.from(telemetry));
+
+            debugPrint(
+                "Simulasi API Terkoneksi Sukses: Data Berhasil Dimasukkan!");
+          }
+        }
       }
     } catch (e) {
       debugPrint("Error HTTP Fetch Dashboard: $e");
@@ -77,20 +96,24 @@ class DashboardController extends GetxController {
   }
 
   // ===========================================================================
-  // TOGGLE ON/OFF UTAMA (Dikirim ke Laravel & Memicu Perubahan)
+  // TOGGLE ON/OFF UTAMA (Dikirim ke Laravel)
   // ===========================================================================
   Future<void> toggleSystemStatus() async {
     try {
-      // Ambil kebalikan dari status saat ini
       bool targetStatus = !systemOn.value;
 
-      // Kirim perintah POST ke backend Laravel
       final response = await _api.post('/control', {
         'system_on': targetStatus,
       });
 
-      if (response.statusCode == 200 && response.data['status'] == 'success') {
-        // Update local state terlebih dahulu agar UI terasa responsif
+      // Deteksi kesuksesan post API
+      bool isSuccess = false;
+      if (response is Map && response['status'] == 'success') isSuccess = true;
+      if (response != null &&
+          response.data != null &&
+          response.data['status'] == 'success') isSuccess = true;
+
+      if (isSuccess) {
         systemOn.value = targetStatus;
         if (!targetStatus) {
           _resetAllRealtimeMetrics();
@@ -108,32 +131,35 @@ class DashboardController extends GetxController {
     }
   }
 
-  // ===========================================================================
-  // MQTT REAL-TIME TELEMETRY RECEIVER
-  // ===========================================================================
-  void _initMqttListen() {
-    _mqttSubscription = _mqttService.payloadStream.listen((payload) {
-      _parseAndUpdates(payload);
-    });
-  }
-
   void toggleSystem(bool value) {
     toggleSystemStatus();
   }
 
   // ===========================================================================
-  // CORE PARSING LOGIC (SINKRONISASI DATABASES & PAYLOAD MASTER)
+  // MQTT REAL-TIME TELEMETRY RECEIVER
+  // ===========================================================================
+  void _initMqttListen() {
+    _mqttSubscription = _mqttService.payloadStream.listen((payload) {
+      if (payload.isNotEmpty) {
+        _parseAndUpdates(payload);
+      }
+    });
+  }
+
+  // ===========================================================================
+  // CORE PARSING LOGIC (SINKRONISASI DATABASE & PAYLOAD MQTT)
   // ===========================================================================
   void _parseAndUpdates(Map<String, dynamic> json) {
     // 1. Sinkronisasi Status Saklar Utama
-    systemOn.value = json['system_on'] ?? false;
+    if (json.containsKey('system_on')) {
+      systemOn.value = json['system_on'] == true || json['system_on'] == 1;
+    }
 
     // 2. Parsing Struktur Data Sub-Object 'arang'
     if (json['arang'] != null) {
       var arang = json['arang'];
       suhuArang.value = _toDouble(arang['suhu_arang']);
-      arangVol.value =
-          _toDouble(arang['volume_arang']); // SINKRON: volume_arang
+      arangVol.value = _toDouble(arang['volume_arang']);
       _updateSparkline(sparkSuhuArang, suhuArang.value);
     }
 
@@ -153,30 +179,42 @@ class DashboardController extends GetxController {
       _updateSparkline(sparkSuhuBleaching, suhuBleaching.value);
     }
 
-    // 4. Parsing Struktur Data Sub-Object 'validasi'
+    // 4. Parsing Struktur Data Sub-Object 'validasi' (DENGAN FUZZY LOGIC)
     if (json['validasi'] != null) {
       var validasi = json['validasi'];
-      validasiVol.value =
-          _toDouble(validasi['volume_validasi']); // SINKRON: volume_validasi
+      validasiVol.value = _toDouble(validasi['volume_validasi']);
       ntu.value = _toDouble(validasi['turbidity']);
       viscosity.value = _toDouble(validasi['viscosity']);
       r.value = validasi['r'] ?? 0;
       g.value = validasi['g'] ?? 0;
       b.value = validasi['b'] ?? 0;
-      warnaLabel.value = getOilColorLabel(r.value, g.value, b.value);
+
+      // Ambil hasil Fuzzy Logic dari ESP32 Master
+      if (validasi.containsKey('kelayakan')) {
+        kelayakan.value = _toDouble(validasi['kelayakan']);
+      }
+      if (validasi.containsKey('status_layak')) {
+        statusLayak.value = validasi['status_layak'].toString();
+      } else {
+        // Fallback jika belum ada data fuzzy
+        statusLayak.value = getOilColorLabel(r.value, g.value, b.value);
+      }
     }
 
-    // 5. Jalankan Evaluasi State Machine untuk Indikator Garis Waktu UI
+    // 5. Jalankan Evaluasi State Machine untuk Indikator UI
     _updateProgressStep();
   }
 
   // ===========================================================================
-  // AUTOMATIC PROGRESS LOGIC (State Machine Evaluator)
+  // AUTOMATIC PROGRESS LOGIC
   // ===========================================================================
   void _updateProgressStep() {
     if (!systemOn.value) {
       progressStep.value = 0;
-    } else if (bleachP2.value || validasiVol.value > 0 || ntu.value > 0) {
+    } else if (bleachP2.value ||
+        validasiVol.value > 0 ||
+        ntu.value > 0 ||
+        kelayakan.value > 0) {
       progressStep.value = 3; // Tahap Validasi / Hasil Akhir
     } else if (bleachP1.value ||
         suhuBleaching.value > 30 ||
@@ -193,10 +231,9 @@ class DashboardController extends GetxController {
   // HELPER METODE & RESETTER
   // ===========================================================================
   void _updateSparkline(RxList<double> list, double value) {
-    // Abaikan nilai error pembacaan sensor (-127 atau 0 saat mati) ke dalam chart grafik
     if (value > 0 && value != -127.0) {
       list.add(value);
-      if (list.length > 15) list.removeAt(0); // Batasi titik chart max 15 data
+      if (list.length > 15) list.removeAt(0);
     }
   }
 
@@ -227,6 +264,8 @@ class DashboardController extends GetxController {
     r.value = 0;
     g.value = 0;
     b.value = 0;
+    kelayakan.value = 0.0;
+    statusLayak.value = "Menunggu Analisa...";
     progressStep.value = 0;
   }
 
