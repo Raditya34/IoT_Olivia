@@ -10,30 +10,31 @@ use App\Models\MasterControl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
+// Pastikan library mqtt laravel sudah terinstall (misal: php-mqtt/laravel-client)
+use PhpMqtt\Client\Facades\MQTT;
+
 class OliviaController extends Controller
 {
     /**
-     * AMBIL DATA UNTUK DASHBOARD FLUTTER
-     * Endpoint: GET /api/dashboard/telemetry
+     * AMBIL DATA UNTUK DASHBOARD FLUTTER (Saat baru buka aplikasi)
+     * Endpoint: GET /api/dashboard
      */
     public function getDashboardData()
     {
         try {
-            // PERBAIKAN UTAMA: Menggunakan orderBy('id', 'desc') karena tidak ada kolom created_at
             $esp1 = Esp1Arang::orderBy('id', 'desc')->first();
             $esp2 = Esp2Bleaching::orderBy('id', 'desc')->first();
             $esp3 = Esp3Validasi::orderBy('id', 'desc')->first();
             $master = MasterControl::first();
 
-            // Format kembalian HARUS sama dengan ekspektasi Frontend
             return response()->json([
                 'status' => 'success',
                 'data' => [
                     'system_on' => (bool) ($master->system_on ?? false),
 
                     'arang' => [
-                        'suhu_arang' => $esp1 ? (float)$esp1->suhu_arang : 0.0,
-                        'volume_arang' => $esp1 ? (float)$esp1->volume_arang : 0.0
+                        'suhu_arang'   => $esp1 ? (float)$esp1->suhu_arang : 0.0,
+                        'volume_arang' => $esp1 ? (float)$esp1->volume_arang : 0.0 // Key Tepat
                     ],
 
                     'bleaching' => [
@@ -50,7 +51,7 @@ class OliviaController extends Controller
                     ],
 
                     'validasi' => [
-                        'volume_validasi' => $esp3 ? (float)$esp3->volume_validasi : 0.0,
+                        'volume_validasi' => $esp3 ? (float)$esp3->volume_validasi : 0.0, // Key Tepat
                         'turbidity'       => $esp3 ? (float)$esp3->turbidity : 0.0,
                         'viscosity'       => $esp3 ? (float)$esp3->viscosity : 0.0,
                         'r'               => $esp3 ? (int)$esp3->r : 0,
@@ -72,7 +73,6 @@ class OliviaController extends Controller
     public function getHistory()
     {
         try {
-            // PERBAIKAN: Menggunakan orderBy id desc untuk menghindari error created_at
             $arang     = Esp1Arang::orderBy('id', 'desc')->take(50)->get();
             $bleaching = Esp2Bleaching::orderBy('id', 'desc')->take(50)->get();
             $validasi  = Esp3Validasi::orderBy('id', 'desc')->take(50)->get();
@@ -92,7 +92,8 @@ class OliviaController extends Controller
     }
 
     /**
-     * STORE DATA DARI WEBHOOK / API POST ESP32 (HARDWARE 1)
+     * SIMPAN DATA DARI ESP32 VIA HTTP POST
+     * (Menggantikan peran script listener yang looping)
      */
     public function storeEsp1(Request $request) {
         try {
@@ -107,9 +108,6 @@ class OliviaController extends Controller
         }
     }
 
-    /**
-     * STORE DATA DARI WEBHOOK / API POST ESP32 (HARDWARE 2)
-     */
     public function storeEsp2(Request $request) {
         try {
             $data = $request->has('payload') ? json_decode($request->input('payload'), true) : $request->all();
@@ -131,9 +129,6 @@ class OliviaController extends Controller
         }
     }
 
-    /**
-     * STORE DATA DARI WEBHOOK / API POST ESP32 (HARDWARE 3)
-     */
     public function storeEsp3(Request $request) {
         try {
             $data = $request->has('payload') ? json_decode($request->input('payload'), true) : $request->all();
@@ -152,16 +147,27 @@ class OliviaController extends Controller
     }
 
     /**
-     * TOGGLE SYSTEM ON/OFF FROM FLUTTER
+     * TOGGLE SYSTEM ON/OFF FROM FLUTTER -> DATABASE -> HIVEMQ -> ESP32
      */
     public function updateControl(Request $request) {
         try {
             $master = MasterControl::firstOrCreate([], ['system_on' => false]);
             if ($request->has('system_on')) {
-                $master->system_on = filter_var($request->system_on, FILTER_VALIDATE_BOOLEAN);
+                $status = filter_var($request->system_on, FILTER_VALIDATE_BOOLEAN);
+
+                // 1. Simpan ke Database
+                $master->system_on = $status;
                 $master->save();
+
+                // 2. Tembak Perintah Langsung ke MQTT agar ESP32 bereaksi
+                try {
+                    $payload = json_encode(['system_on' => $status]);
+                    // TOPIC HARUS SAMA DENGAN topic_sub_control DI ESP32
+                    MQTT::publish('olivia/control', $payload);
+                } catch (\Exception $e) {
+                    Log::error("Gagal Publish MQTT (Control): " . $e->getMessage());
+                }
             }
-            // Disamakan standard status 'success' dengan endpoint lainnya
             return response()->json(['status' => 'success', 'data' => $master], 200);
         } catch (\Exception $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
