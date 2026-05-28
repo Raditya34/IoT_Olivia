@@ -20,7 +20,7 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
 
     // DIUBAH: Disesuaikan dengan pemanggilan Flutter get('/dashboard/telemetry')
-    Route::get('/dashboard/telemetry', [OliviaController::class, 'getDashboardData']);
+    Route::get('/dashboard', [OliviaController::class, 'getDashboardData']);
     Route::post('/control', [OliviaController::class, 'updateControl']);
 
     // Fitur Tambahan (Opsional)
