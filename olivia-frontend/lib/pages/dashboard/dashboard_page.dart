@@ -131,7 +131,7 @@ class DashboardPage extends GetView<DashboardController> {
           Switch(
             value: controller.systemOn.value,
             activeColor: AppColors.teal,
-            onChanged: (val) => controller.toggleSystem(),
+            onChanged: (val) => controller.toggleSystem(val),
           ),
         ],
       ),

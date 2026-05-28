@@ -1,18 +1,19 @@
-// lib/state/dashboard_controller.dart
 import 'package:get/get.dart';
 import 'dart:async';
+import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/mqtt_service.dart';
 
 class DashboardController extends GetxController {
   final ApiService _api = ApiService();
-
-  // Menggunakan instance singleton yang telah didaftarkan ke GetX
   final MqttService _mqttService = Get.find<MqttService>();
 
+  // =========================================
+  // STATE VARIABEL
+  // =========================================
   var systemOn = false.obs;
-  var progressStep = 0.obs;
   var isLoading = true.obs;
+  var progressStep = 0.obs;
 
   // --- Proses 1 (Arang) ---
   var suhuArang = 0.0.obs;
@@ -22,6 +23,9 @@ class DashboardController extends GetxController {
   // --- Proses 2 (Bleaching) ---
   var suhuBleaching = 0.0.obs;
   var sparkSuhuBleaching = <double>[0.0].obs;
+
+  // PENYESUAIAN KEY: Nama variabel Rx disamakan maknanya,
+  // namun nanti saat parsing dipastikan menggunakan key pendek (valve, p1, dll)
   var bleachValve = false.obs;
   var bleachP1 = false.obs;
   var bleachP2 = false.obs;
@@ -44,47 +48,86 @@ class DashboardController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _initDashboardAndMqtt(); // Ambil data awal lewat API lalu nyalakan MQTT
+    // 1. Ambil data pertama kali dari API (Database Laravel)
+    fetchDashboardData();
+
+    // 2. Dengarkan data real-time dari MQTT
+    _mqttService.onMessageReceived = _handleIncomingMqttData;
+    _mqttService.subscribe('olivia/master/telemetry');
   }
 
-  @override
-  void onClose() {
-    // Memutus koneksi jika halaman/controller dihancurkan
-    _mqttService.disconnect();
-    super.onClose();
-  }
+  // =========================================
+  // FUNGSI MENGAMBIL DATA DARI API (HTTP GET)
+  // =========================================
+  Future<void> fetchDashboardData() async {
+    try {
+      isLoading(true);
+      final response = await _api.get('/dashboard/telemetry');
 
-  Future<void> _initDashboardAndMqtt() async {
-    // 1. Ambil snapshot data terbaru dari database backend (HTTP)
-    await fetchDashboardData();
+      if (response != null && response['status'] == 'success') {
+        final data = response['data'];
 
-    // 2. Setup callback penangkap data MQTT dari HiveMQ Cloud
-    _mqttService.onMessageReceived = (topic, data) {
-      _handleIncomingMqttData(topic, data);
-    };
+        // Parsing Data System On
+        systemOn.value = data['system_on'] ?? false;
 
-    // 3. Hubungkan ke HiveMQ Broker
-    bool isConnected = await _mqttService.connect();
-    if (isConnected) {
-      print('MQTT Connected Successfully to HiveMQ Cloud!');
-      // Subscribe ke topik monitoring data alat IoT Anda
-      _mqttService.subscribe('olivia/purifikasi/telemetry');
-    } else {
-      print('MQTT Connection Failed!');
+        // Parsing Data Arang
+        if (data['arang'] != null) {
+          suhuArang.value = _toDouble(data['arang']['suhu_arang']);
+          arangVol.value = _toDouble(data['arang']['volume_arang']);
+          _updateSparkline(sparkSuhuArang, suhuArang.value);
+        }
+
+        // Parsing Data Bleaching (SINKRONISASI KEY MISMATCH)
+        if (data['bleaching'] != null) {
+          final d2 = data['bleaching'];
+          suhuBleaching.value = _toDouble(d2['suhu_bleaching']);
+          _updateSparkline(sparkSuhuBleaching, suhuBleaching.value);
+
+          bleachValve.value = d2['valve'] ?? false;
+          bleachP1.value = d2['p1'] ?? false;
+          bleachP2.value = d2['p2'] ?? false;
+          bleachP3.value = d2['p3'] ?? false;
+          bleachH1.value = d2['h1'] ?? false;
+          bleachH2.value = d2['h2'] ?? false;
+          bleachH3.value = d2['h3'] ?? false;
+          bleachH4.value = d2['h4'] ?? false;
+          bleachSpeed.value = d2['speed'] ?? 0;
+        }
+
+        // Parsing Data Validasi
+        if (data['validasi'] != null) {
+          final d3 = data['validasi'];
+          validasiVol.value = _toDouble(d3['volume_validasi']);
+          ntu.value = _toDouble(d3['turbidity']);
+          viscosity.value = _toDouble(d3['viscosity']);
+          r.value = d3['r'] ?? 0;
+          g.value = d3['g'] ?? 0;
+          b.value = d3['b'] ?? 0;
+          warnaLabel.value = getOilColorLabel(r.value, g.value, b.value);
+        }
+
+        _updateProgressStep();
+      }
+    } catch (e) {
+      debugPrint("Error Fetch Dashboard: $e");
+    } finally {
+      isLoading(false);
     }
   }
 
-  // Fungsi untuk memproses data real-time dari HiveMQ
+  // =========================================
+  // FUNGSI MENDENGARKAN DATA REAL-TIME MQTT
+  // =========================================
   void _handleIncomingMqttData(String topic, Map<String, dynamic> data) {
-    if (topic == 'olivia/purifikasi/telemetry') {
-      // Pastikan status sistem aktif mengikuti data terbaru dari IoT
+    if (topic == 'olivia/master/telemetry') {
+      // Update Control System
       if (data.containsKey('system_on')) {
-        systemOn.value = data['system_on'] ?? false;
+        systemOn.value = data['system_on'];
       }
 
-      // --- Parsing Proses 1: Arang ---
-      if (data['arang'] != null) {
-        var d1 = data['arang'];
+      // Update Arang
+      if (data.containsKey('arang')) {
+        final d1 = data['arang'];
         if (d1.containsKey('suhu_arang')) {
           suhuArang.value = _toDouble(d1['suhu_arang']);
           _updateSparkline(sparkSuhuArang, suhuArang.value);
@@ -94,158 +137,107 @@ class DashboardController extends GetxController {
         }
       }
 
-      // --- Parsing Proses 2: Bleaching ---
-      if (data['bleaching'] != null) {
-        var d2 = data['bleaching'];
+      // Update Bleaching (SINKRONISASI KEY MISMATCH)
+      if (data.containsKey('bleaching')) {
+        final d2 = data['bleaching'];
         if (d2.containsKey('suhu_bleaching')) {
           suhuBleaching.value = _toDouble(d2['suhu_bleaching']);
           _updateSparkline(sparkSuhuBleaching, suhuBleaching.value);
         }
-        if (d2.containsKey('valve')) bleachValve.value = d2['valve'] ?? false;
-        if (d2.containsKey('p1')) bleachP1.value = d2['p1'] ?? false;
-        if (d2.containsKey('p2')) bleachP2.value = d2['p2'] ?? false;
-        if (d2.containsKey('p3')) bleachP3.value = d2['p3'] ?? false;
-        if (d2.containsKey('h1')) bleachH1.value = d2['h1'] ?? false;
-        if (d2.containsKey('h2')) bleachH2.value = d2['h2'] ?? false;
-        if (d2.containsKey('h3')) bleachH3.value = d2['h3'] ?? false;
-        if (d2.containsKey('h4')) bleachH4.value = d2['h4'] ?? false;
-        if (d2.containsKey('speed')) bleachSpeed.value = _toInt(d2['speed']);
+        if (d2.containsKey('valve')) bleachValve.value = d2['valve'];
+        if (d2.containsKey('p1')) bleachP1.value = d2['p1'];
+        if (d2.containsKey('p2')) bleachP2.value = d2['p2'];
+        if (d2.containsKey('p3')) bleachP3.value = d2['p3'];
+        if (d2.containsKey('h1')) bleachH1.value = d2['h1'];
+        if (d2.containsKey('h2')) bleachH2.value = d2['h2'];
+        if (d2.containsKey('h3')) bleachH3.value = d2['h3'];
+        if (d2.containsKey('h4')) bleachH4.value = d2['h4'];
+        if (d2.containsKey('speed')) bleachSpeed.value = d2['speed'];
       }
 
-      // --- Parsing Proses 3: Validasi ---
-      if (data['validasi'] != null) {
-        var d3 = data['validasi'];
-        if (d3.containsKey('volume_validasi')) {
+      // Update Validasi
+      if (data.containsKey('validasi')) {
+        final d3 = data['validasi'];
+        if (d3.containsKey('volume_validasi'))
           validasiVol.value = _toDouble(d3['volume_validasi']);
-        }
         if (d3.containsKey('turbidity')) ntu.value = _toDouble(d3['turbidity']);
-        if (d3.containsKey('viscosity')) {
+        if (d3.containsKey('viscosity'))
           viscosity.value = _toDouble(d3['viscosity']);
-        }
-
-        // Parsing RGB untuk update label warna secara langsung
-        bool colorChanged = false;
-        if (d3.containsKey('r')) {
-          r.value = _toInt(d3['r']);
-          colorChanged = true;
-        }
-        if (d3.containsKey('g')) {
-          g.value = _toInt(d3['g']);
-          colorChanged = true;
-        }
-        if (d3.containsKey('b')) {
-          b.value = _toInt(d3['b']);
-          colorChanged = true;
-        }
-
-        if (colorChanged) {
-          warnaLabel.value = getOilColorLabel(r.value, g.value, b.value);
-        }
+        if (d3.containsKey('r')) r.value = d3['r'];
+        if (d3.containsKey('g')) g.value = d3['g'];
+        if (d3.containsKey('b')) b.value = d3['b'];
+        warnaLabel.value = getOilColorLabel(r.value, g.value, b.value);
       }
 
-      // --- Hitung Ulang Progress Step ---
-      _calculateProgressStep();
+      _updateProgressStep();
     }
   }
 
-  // Helper eksternal untuk menghitung kemajuan alur proses kerja
-  void _calculateProgressStep() {
-    if (validasiVol.value > 0 || ntu.value > 0) {
-      progressStep.value = 2;
-    } else if (suhuBleaching.value > 0 || bleachP1.value) {
-      progressStep.value = 1;
+  // =========================================
+  // FUNGSI TOGGLE ON/OFF SISTEM (AKTUATOR)
+  // =========================================
+  Future<void> toggleSystem(bool newState) async {
+    // Optimistic UI update (Berubah di UI seketika)
+    systemOn.value = newState;
+
+    try {
+      // 1. Update ke Backend API Laravel
+      final response = await _api.post('/control', {'system_on': newState});
+
+      if (response != null && response['success'] == true) {
+        Get.snackbar('Berhasil',
+            'Sistem berhasil di${newState ? 'nyalakan' : 'matikan'}');
+
+        // 2. JALUR GANDA: Publikasikan juga perintah kontrol ke MQTT untuk respon cepat alat ESP32
+        _mqttService.publish('olivia/control', {
+          'system_on': newState,
+          'timestamp': DateTime.now().millisecondsSinceEpoch
+        });
+      } else {
+        // Rollback jika API gagal
+        systemOn.value = !newState;
+        Get.snackbar('Gagal', 'Gagal mengubah status kontrol sistem');
+      }
+    } catch (e) {
+      // Rollback jika terjadi error koneksi
+      systemOn.value = !newState;
+      Get.snackbar('Error', 'Terjadi kesalahan jaringan: $e');
+    }
+  }
+
+  // =========================================
+  // LOGIKA STATUS PROGRESS UI
+  // =========================================
+  void _updateProgressStep() {
+    if (!systemOn.value) {
+      progressStep.value = 0;
+    } else if (bleachP2.value || validasiVol.value > 0) {
+      progressStep.value = 3; // Sedang di tahap validasi akhir
+    } else if (bleachP1.value || suhuBleaching.value > 30) {
+      progressStep.value = 2; // Sedang di tahap bleaching
+    } else if (suhuArang.value > 30) {
+      progressStep.value = 1; // Sedang di tahap pemanasan arang
     } else {
       progressStep.value = 0;
     }
   }
 
-  // Mengambil snapshot dari database via API HTTP (Bagus untuk pull-to-refresh)
-  Future<void> fetchDashboardData() async {
-    try {
-      if (isLoading.value && sparkSuhuArang.length <= 1) {
-        isLoading.value = true;
-      }
-
-      final response = await _api.get('/dashboard');
-
-      if (response != null && response['status'] == 'success') {
-        final data = response['data'];
-        systemOn.value = data['system_on'] ?? false;
-
-        // --- Parsing Proses 1: Arang ---
-        if (data['arang'] != null) {
-          var d1 = data['arang'];
-          suhuArang.value = _toDouble(d1['suhu_arang']);
-          _updateSparkline(sparkSuhuArang, suhuArang.value);
-          arangVol.value = _toDouble(d1['volume_arang']);
-        }
-
-        // --- Parsing Proses 2: Bleaching ---
-        if (data['bleaching'] != null) {
-          var d2 = data['bleaching'];
-          suhuBleaching.value = _toDouble(d2['suhu_bleaching']);
-          _updateSparkline(sparkSuhuBleaching, suhuBleaching.value);
-          bleachValve.value = d2['valve'] ?? false;
-          bleachP1.value = d2['p1'] ?? false;
-          bleachP2.value = d2['p2'] ?? false;
-          bleachP3.value = d2['p3'] ?? false;
-          bleachH1.value = d2['h1'] ?? false;
-          bleachH2.value = d2['h2'] ?? false;
-          bleachH3.value = d2['h3'] ?? false;
-          bleachH4.value = d2['h4'] ?? false;
-          bleachSpeed.value = _toInt(d2['speed']);
-        }
-
-        // --- Parsing Proses 3: Validasi ---
-        if (data['validasi'] != null) {
-          var d3 = data['validasi'];
-          validasiVol.value = _toDouble(d3['volume_validasi']);
-          ntu.value = _toDouble(d3['turbidity']);
-          viscosity.value = _toDouble(d3['viscosity']);
-          r.value = _toInt(d3['r']);
-          g.value = _toInt(d3['g']);
-          b.value = _toInt(d3['b']);
-          warnaLabel.value = getOilColorLabel(r.value, g.value, b.value);
-        }
-
-        _calculateProgressStep();
-      }
-    } catch (e) {
-      print("Dashboard fetch error: $e");
-    } finally {
-      isLoading.value = false;
+  // =========================================
+  // HELPER FUNCTIONS
+  // =========================================
+  void _updateSparkline(RxList<double> list, double value) {
+    if (value > 0) {
+      list.add(value);
+      if (list.length > 15) list.removeAt(0); // Batasi maksimal 15 titik grafik
     }
   }
 
-  void _updateSparkline(RxList<double> list, double newValue) {
-    list.add(newValue);
-    if (list.length > 10) list.removeAt(0);
-  }
-
-  Future<void> toggleSystem() async {
-    final newState = !systemOn.value;
-    systemOn.value = newState;
-    try {
-      final response = await _api.post('/control', {'system_on': newState});
-      if (response != null && response['success'] == true) {
-        Get.snackbar('Berhasil',
-            'Sistem berhasil di${newState ? 'nyalakan' : 'matikan'}');
-
-        // JALUR GANDA: Publikasikan juga perintah kontrol ke MQTT untuk respon cepat alat IoT
-        _mqttService.publish('olivia/control', {
-          'system_on': newState,
-          'timestamp': DateTime.now().millisecondsSinceEpoch
-        });
-
-        fetchDashboardData();
-      } else {
-        systemOn.value = !newState;
-        Get.snackbar('Gagal', 'Gagal mengubah status kontrol sistem');
-      }
-    } catch (e) {
-      systemOn.value = !newState;
-      Get.snackbar('Error', 'Terjadi kesalahan jaringan: $e');
-    }
+  double _toDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is double) return val;
+    if (val is int) return val.toDouble();
+    if (val is String) return double.tryParse(val) ?? 0.0;
+    return 0.0;
   }
 
   String getOilColorLabel(int r, int g, int b) {
@@ -255,17 +247,5 @@ class DashboardController extends GetxController {
     if (brightness > 120) return 'Agak Jernih (Cukup Layak)';
     if (brightness > 60) return 'Coklat Kekuningan (Kurang Layak)';
     return 'Coklat Kotor (Tidak Layak)';
-  }
-
-  double _toDouble(dynamic val) {
-    if (val == null) return 0.0;
-    if (val is num) return val.toDouble();
-    return double.tryParse(val.toString()) ?? 0.0;
-  }
-
-  int _toInt(dynamic val) {
-    if (val == null) return 0;
-    if (val is num) return val.toInt();
-    return int.tryParse(val.toString()) ?? 0;
   }
 }
