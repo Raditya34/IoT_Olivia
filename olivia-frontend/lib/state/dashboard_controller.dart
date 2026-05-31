@@ -36,18 +36,21 @@ class DashboardController extends GetxController {
   var bleachH4 = false.obs;
   var bleachSpeed = 0.obs;
 
-  // --- UNIT 3: PROSES VALIDASI (AKHIR) ---
+  // --- UNIT 3: PROSES VALIDASI ---
   var validasiVol = 0.0.obs;
   var ntu = 0.0.obs;
   var viscosity = 0.0.obs;
   var r = 0.obs;
   var g = 0.obs;
   var b = 0.obs;
-  var warnaLabel = "Menunggu Analisa...".obs;
 
-  // --- VARIABEL FUZZY LOGIC (BARU DITAMBAHKAN SESUAI ESP32) ---
+  // --- FUZZY LOGIC (dari ESP32 Master) ---
   var kelayakan = 0.0.obs;
   var statusLayak = "Menunggu Analisa...".obs;
+
+  // ✅ FIX: warnaLabel sekarang diturunkan dari statusLayak (bukan dihitung ulang di sini)
+  // sehingga konsisten dengan hasil fuzzy logic dari ESP32 Master
+  var warnaLabel = "Menunggu Analisa...".obs;
 
   StreamSubscription? _mqttSubscription;
   StreamSubscription? _connectionSubscription;
@@ -63,18 +66,20 @@ class DashboardController extends GetxController {
   }
 
   void _setupConnectionListener() {
-    _connectionSubscription = _mqttService.isConnected.listen((isConnected) {
-      this.isConnected.value = isConnected;
-      connectionMessage.value = isConnected ? "Terhubung" : "Tidak Terhubung";
+    _connectionSubscription = _mqttService.isConnected.listen((connected) {
+      isConnected.value = connected;
+      connectionMessage.value = connected ? "Terhubung" : "Tidak Terhubung";
+      debugPrint('[MQTT] Connection status: $connected');
     });
   }
 
-  /// 🔄 AUTO-POLLING FALLBACK: Ketika MQTT tidak terhubung, polling API setiap 2 detik
+  /// 🔄 AUTO-POLLING FALLBACK: polling API tiap 3 detik jika MQTT tidak terhubung
   void _startPollingFallback() {
-    _pollingTimer = Timer.periodic(Duration(seconds: 2), (timer) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      // ✅ Polling tetap berjalan untuk data sensor walaupun system off
+      // (bukan hanya saat MQTT tidak terhubung)
       if (!isConnected.value) {
-        // Hanya polling jika MQTT tidak terhubung
-        debugPrint('[POLLING] Fetching data from API...');
+        debugPrint('[POLLING] MQTT offline → Fetching data from API...');
         fetchDashboardData();
       }
     });
@@ -89,71 +94,56 @@ class DashboardController extends GetxController {
   }
 
   // ===========================================================================
-  // HTTP API FETCH (Sinkronisasi awal dari Laravel)
+  // HTTP API FETCH (Sinkronisasi awal & fallback)
   // ===========================================================================
   Future<void> fetchDashboardData() async {
     try {
-      // Only show loading on first load, not on polling
       final isFirstLoad = isLoading.value;
       if (isFirstLoad) isLoading.value = true;
 
-      // 1. Ambil data dari endpoint /dashboard
       final response = await _api.get('/dashboard');
 
-      // 2. Proses response yang bisa berbentuk Map atau Response object
       dynamic data;
-
-      // Handle jika response adalah Map (dari ApiService)
       if (response is Map) {
         data = response;
-      }
-      // Handle jika response memiliki properti .data (Response object)
-      else if (response != null && response.data != null) {
+      } else if (response?.data != null) {
         data = response.data;
       }
 
-      // 3. Cek struktur response: harus ada 'status' == 'success' dan 'data'
       if (data != null && data['status'] == 'success') {
         final telemetry = data['data'];
-
         if (telemetry != null) {
-          // 4. Parse dan update UI dengan data dari API
           _parseAndUpdates(Map<String, dynamic>.from(telemetry));
           debugPrint('[API] Dashboard data fetched successfully');
-        } else {
-          debugPrint('[API] Warning: No telemetry data in response');
         }
       } else {
-        debugPrint('[API] Response does not have success status');
+        debugPrint('[API] Response tidak berisi status success');
       }
     } catch (e) {
       debugPrint("[API] Error fetching dashboard: $e");
-      // Jangan throw error, tetap tampilkan data terakhir yang ada
     } finally {
       isLoading.value = false;
     }
   }
 
   // ===========================================================================
-  // TOGGLE ON/OFF UTAMA (Dikirim ke Laravel + MQTT sebagai backup)
+  // TOGGLE ON/OFF SISTEM (dari Flutter → Laravel → MQTT → ESP32 via RS485)
   // ===========================================================================
   Future<void> toggleSystemStatus() async {
     try {
       bool targetStatus = !systemOn.value;
 
-      // 1️⃣ PRIORITAS UTAMA: Publish ke MQTT jika tersedia (untuk response real-time)
+      // 1️⃣ Kirim via MQTT untuk response real-time (jika tersedia)
       if (isConnected.value) {
         _mqttService.publish('olivia/control/request', {
           'command': 'system_toggle',
           'system_on': targetStatus,
           'timestamp': DateTime.now().toIso8601String(),
         });
-        debugPrint('[TOGGLE] MQTT command sent');
-      } else {
-        debugPrint('[TOGGLE] MQTT not connected, using API fallback');
+        debugPrint('[TOGGLE] MQTT command sent: system_on=$targetStatus');
       }
 
-      // 2️⃣ SELALU kirim ke API (baik MQTT connected atau tidak)
+      // 2️⃣ Selalu kirim ke API Laravel (sebagai sumber kebenaran utama)
       final response = await _api.post('/control', {
         'system_on': targetStatus,
       }).timeout(
@@ -161,47 +151,47 @@ class DashboardController extends GetxController {
         onTimeout: () => throw TimeoutException('API request timeout'),
       );
 
-      // Deteksi kesuksesan post API
       bool isSuccess = false;
       if (response is Map && response['status'] == 'success') isSuccess = true;
-      if (response != null &&
-          response.data != null &&
-          response.data['status'] == 'success') isSuccess = true;
+      if (response?.data?['status'] == 'success') isSuccess = true;
 
       if (isSuccess) {
         systemOn.value = targetStatus;
+
         Get.snackbar(
           "Sukses",
-          targetStatus
-              ? "Sistem dihidupkan ${isConnected.value ? '' : '(via API)'}"
-              : "Sistem dimatikan ${isConnected.value ? '' : '(via API)'}",
+          targetStatus ? "Sistem dihidupkan" : "Sistem dimatikan",
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: Colors.green.withOpacity(0.8),
           colorText: Colors.white,
           duration: const Duration(seconds: 2),
         );
+
+        // ✅ FIX: Saat sistem dimatikan, HANYA reset status aktuator
+        // Data sensor (suhu, volume, ntu, dll) TIDAK direset
+        // sehingga tetap tampil di UI
         if (!targetStatus) {
-          _resetAllRealtimeMetrics();
+          _resetActuatorsOnly();
         }
-        // Refresh data dari server untuk sinkronisasi
+
+        // Refresh data dari server
         fetchDashboardData();
       } else {
         throw Exception('Server returned unsuccessful status');
       }
     } on TimeoutException {
-      debugPrint("Error: API request timeout");
       Get.snackbar(
         "Request Timeout",
-        "Perintah kontrol tidak merespons dalam waktu yang ditentukan.",
+        "Perintah tidak merespons. Coba lagi.",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.orange.withOpacity(0.8),
         colorText: Colors.white,
       );
     } catch (e) {
-      debugPrint("Error Toggle System Control: $e");
+      debugPrint("Error Toggle: $e");
       Get.snackbar(
         "Koneksi Gagal",
-        "Gagal mengirimkan perintah kontrol ke sistem.\nDetail: ${e.toString().length > 50 ? e.toString().substring(0, 50) + '...' : e.toString()}",
+        "Gagal mengirim perintah ke sistem.",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red.withOpacity(0.8),
         colorText: Colors.white,
@@ -210,12 +200,10 @@ class DashboardController extends GetxController {
     }
   }
 
-  void toggleSystem(bool value) {
-    toggleSystemStatus();
-  }
+  void toggleSystem(bool value) => toggleSystemStatus();
 
   // ===========================================================================
-  // MQTT REAL-TIME TELEMETRY RECEIVER
+  // MQTT REAL-TIME RECEIVER
   // ===========================================================================
   void _initMqttListen() {
     _mqttSubscription = _mqttService.payloadStream.listen((payload) {
@@ -226,15 +214,15 @@ class DashboardController extends GetxController {
   }
 
   // ===========================================================================
-  // CORE PARSING LOGIC (SINKRONISASI DATABASE & PAYLOAD MQTT)
+  // CORE PARSING LOGIC
   // ===========================================================================
   void _parseAndUpdates(Map<String, dynamic> json) {
-    // 1. Sinkronisasi Status Saklar Utama
+    // 1. Status saklar utama
     if (json.containsKey('system_on')) {
       systemOn.value = json['system_on'] == true || json['system_on'] == 1;
     }
 
-    // 2. Parsing Struktur Data Sub-Object 'arang'
+    // 2. Data Arang
     if (json['arang'] != null) {
       var arang = json['arang'];
       suhuArang.value = _toDouble(arang['suhu_arang']);
@@ -242,7 +230,7 @@ class DashboardController extends GetxController {
       _updateSparkline(sparkSuhuArang, suhuArang.value);
     }
 
-    // 3. Parsing Struktur Data Sub-Object 'bleaching'
+    // 3. Data Bleaching
     if (json['bleaching'] != null) {
       var bleaching = json['bleaching'];
       suhuBleaching.value = _toDouble(bleaching['suhu_bleaching']);
@@ -258,56 +246,65 @@ class DashboardController extends GetxController {
       _updateSparkline(sparkSuhuBleaching, suhuBleaching.value);
     }
 
-    // 4. Parsing Struktur Data Sub-Object 'validasi' (DENGAN FUZZY LOGIC)
+    // 4. Data Validasi
     if (json['validasi'] != null) {
       var validasi = json['validasi'];
+
+      // ✅ Data sensor selalu diupdate, tidak tergantung system_on
       validasiVol.value = _toDouble(validasi['volume_validasi']);
       ntu.value = _toDouble(validasi['turbidity']);
       viscosity.value = _toDouble(validasi['viscosity']);
-      r.value = validasi['r'] ?? 0;
-      g.value = validasi['g'] ?? 0;
-      b.value = validasi['b'] ?? 0;
+      r.value = (validasi['r'] as num?)?.toInt() ?? 0;
+      g.value = (validasi['g'] as num?)?.toInt() ?? 0;
+      b.value = (validasi['b'] as num?)?.toInt() ?? 0;
 
-      // Ambil hasil Fuzzy Logic dari ESP32 Master
+      // ✅ FIX: Ambil hasil Fuzzy dari ESP32 Master
       if (validasi.containsKey('kelayakan')) {
         kelayakan.value = _toDouble(validasi['kelayakan']);
       }
-      if (validasi.containsKey('status_layak')) {
+
+      // ✅ FIX: statusLayak & warnaLabel diambil langsung dari server (bukan dihitung ulang)
+      if (validasi.containsKey('status_layak') &&
+          validasi['status_layak'] != null &&
+          validasi['status_layak'].toString().isNotEmpty) {
         statusLayak.value = validasi['status_layak'].toString();
+        // Terjemahkan status_layak ke label warna yang user-friendly
+        warnaLabel.value = _translateStatusToWarnaLabel(statusLayak.value);
       } else {
-        // Fallback jika belum ada data fuzzy
+        // Fallback: hitung dari nilai RGB jika server belum kirim status
         statusLayak.value = getOilColorLabel(r.value, g.value, b.value);
+        warnaLabel.value = statusLayak.value;
       }
     }
 
-    // 5. Jalankan Evaluasi State Machine untuk Indikator UI
+    // 5. Update progress step berdasarkan state terkini
     _updateProgressStep();
   }
 
   // ===========================================================================
-  // AUTOMATIC PROGRESS LOGIC
+  // PROGRESS STEP LOGIC
   // ===========================================================================
   void _updateProgressStep() {
-    if (!systemOn.value) {
-      progressStep.value = 0;
-    } else if (bleachP2.value ||
+    // ✅ FIX: Progress step menggambarkan KONDISI PROSES, bukan hanya saat system_on
+    // Sehingga walaupun sistem dimatikan, kalau ada data sensor, step bisa tetap tampil
+    if (bleachP2.value ||
         validasiVol.value > 0 ||
         ntu.value > 0 ||
         kelayakan.value > 0) {
-      progressStep.value = 3; // Tahap Validasi / Hasil Akhir
+      progressStep.value = 3; // Tahap Validasi
     } else if (bleachP1.value ||
         suhuBleaching.value > 30 ||
         bleachSpeed.value > 0) {
-      progressStep.value = 2; // Sedang dalam tahapan pencampuran Bleaching
+      progressStep.value = 2; // Tahap Bleaching
     } else if (suhuArang.value > 30 || arangVol.value > 0) {
-      progressStep.value = 1; // Sedang dalam tahapan Pemanasan Arang
+      progressStep.value = 1; // Tahap Arang
     } else {
-      progressStep.value = 0; // Standby berjalan namun parameter belum naik
+      progressStep.value = 0; // Standby
     }
   }
 
   // ===========================================================================
-  // HELPER METODE & RESETTER
+  // HELPER METODE
   // ===========================================================================
   void _updateSparkline(RxList<double> list, double value) {
     if (value > 0 && value != -127.0) {
@@ -324,10 +321,25 @@ class DashboardController extends GetxController {
     return 0.0;
   }
 
-  void _resetAllRealtimeMetrics() {
-    suhuArang.value = 0.0;
-    arangVol.value = 0.0;
-    suhuBleaching.value = 0.0;
+  /// ✅ FIX: Terjemahkan status_layak dari ESP32 ke label UI yang ramah
+  String _translateStatusToWarnaLabel(String status) {
+    switch (status.toUpperCase().trim()) {
+      case 'SANGAT LAYAK':
+        return 'Sangat Baik (Cerah & Jernih)';
+      case 'LAYAK':
+        return 'Baik (Memenuhi Standar)';
+      case 'KURANG LAYAK':
+        return 'Perlu Purifikasi Ulang';
+      case 'TIDAK LAYAK':
+        return 'Tidak Memenuhi Standar';
+      default:
+        return 'Menunggu Analisa...';
+    }
+  }
+
+  /// ✅ FIX: Hanya reset STATUS AKTUATOR saat sistem dimatikan
+  /// Data sensor (suhu, volume, ntu, dll) TETAP ditampilkan
+  void _resetActuatorsOnly() {
     bleachValve.value = false;
     bleachP1.value = false;
     bleachP2.value = false;
@@ -337,6 +349,16 @@ class DashboardController extends GetxController {
     bleachH3.value = false;
     bleachH4.value = false;
     bleachSpeed.value = 0;
+    // ⚠️ TIDAK mereset: suhuArang, arangVol, suhuBleaching,
+    //    validasiVol, ntu, viscosity, r, g, b, kelayakan, statusLayak
+  }
+
+  /// Reset SEMUA data (dipanggil secara manual/eksplisit jika diperlukan)
+  void resetAllData() {
+    suhuArang.value = 0.0;
+    arangVol.value = 0.0;
+    suhuBleaching.value = 0.0;
+    _resetActuatorsOnly();
     validasiVol.value = 0.0;
     ntu.value = 0.0;
     viscosity.value = 0.0;
@@ -345,9 +367,11 @@ class DashboardController extends GetxController {
     b.value = 0;
     kelayakan.value = 0.0;
     statusLayak.value = "Menunggu Analisa...";
+    warnaLabel.value = "Menunggu Analisa...";
     progressStep.value = 0;
   }
 
+  /// Fallback warna label dari RGB (jika status_layak belum tersedia dari server)
   String getOilColorLabel(int r, int g, int b) {
     if (r == 0 && g == 0 && b == 0) return "Menunggu Analisa...";
     if (r > 200 && g > 180 && b < 130) return "Cerah (Sesuai Standar)";

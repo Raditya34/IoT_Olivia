@@ -1,3 +1,4 @@
+// lib/services/mqtt_service.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -14,16 +15,15 @@ class MqttService extends GetxService {
 
   late MqttServerClient _client;
   Function(String topic, Map<String, dynamic> data)? onMessageReceived;
+
   final StreamController<Map<String, dynamic>> _payloadController =
       StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get payloadStream => _payloadController.stream;
 
-  // Observable untuk tracking status koneksi
   final isConnected = false.obs;
   final reconnectAttempts = 0.obs;
 
-  // Listener didaftapkan SEKALI saja saat connect, bukan saat subscribe
   StreamSubscription? _subscription;
 
   @override
@@ -32,7 +32,6 @@ class MqttService extends GetxService {
     _clientId = 'flutter_olivia_${DateTime.now().millisecondsSinceEpoch}';
     _client = MqttServerClient.withPort(_host, _clientId, _port);
     _setupClient();
-    // Auto-connect MQTT saat service diinisialisasi
     connect();
   }
 
@@ -41,7 +40,7 @@ class MqttService extends GetxService {
     _client.keepAlivePeriod = 60;
     _client.secure = true;
     _client.securityContext = SecurityContext.defaultContext;
-    _client.onBadCertificate = (dynamic cert) => true;
+    _client.onBadCertificate = (_) => true;
     _client.onDisconnected = _onDisconnected;
 
     final connMess = MqttConnectMessage()
@@ -63,7 +62,7 @@ class MqttService extends GetxService {
         isConnected.value = true;
         reconnectAttempts.value = 0;
 
-        // Daftarkan listener SEKALI di sini, bukan di dalam subscribe()
+        // Daftarkan listener SEKALI saja di sini
         _subscription = _client.updates!
             .listen((List<MqttReceivedMessage<MqttMessage>> messages) {
           for (final msg in messages) {
@@ -74,18 +73,25 @@ class MqttService extends GetxService {
               final Map<String, dynamic> parsed = jsonDecode(pt);
               onMessageReceived?.call(msg.topic, parsed);
               _payloadController.add(parsed);
+              print('[MQTT RX] Topic: ${msg.topic}');
             } catch (e) {
-              print('[MQTT] Error parsing payload: $e');
+              print('[MQTT] Error parsing payload dari ${msg.topic}: $e');
             }
           }
         });
 
-        // AUTO-SUBSCRIBE ke topic utama setelah connect berhasil
+        // ✅ Subscribe ke topic yang dikirim oleh MqttSubscribe.php Laravel
+        // Laravel re-publish ke 'olivia/telemetry' (format flat tanpa device code)
         subscribe('olivia/telemetry');
-        subscribe('olivia/system');
+
+        // ✅ Subscribe ke response kontrol (acknowledgement dari Laravel setelah toggle)
         subscribe('olivia/control/response');
 
-        print('[MQTT] Connected and subscribed to topics!');
+        // ✅ Subscribe ke topic Master langsung sebagai fallback
+        // (jika Laravel MqttSubscribe tidak berjalan / down)
+        subscribe('olivia/OLIVIA-MASTER/telemetry');
+
+        print('[MQTT] Connected! Subscribed to all topics.');
       } else {
         throw Exception('Failed to establish MQTT connection');
       }
@@ -99,31 +105,27 @@ class MqttService extends GetxService {
     }
   }
 
-  /// Auto-reconnect dengan exponential backoff
   void _attemptReconnect() {
     if (reconnectAttempts.value < 5) {
       reconnectAttempts.value++;
       final delay = Duration(seconds: 5 * reconnectAttempts.value);
       print(
-          '[MQTT] Attempting reconnect in ${delay.inSeconds}s... (Attempt ${reconnectAttempts.value})');
-
+          '[MQTT] Reconnect dalam ${delay.inSeconds}s... (Attempt ${reconnectAttempts.value})');
       Future.delayed(delay, () {
-        if (!isConnected.value) {
-          connect();
-        }
+        if (!isConnected.value) connect();
       });
     } else {
-      print('[MQTT] Max reconnection attempts reached');
+      print(
+          '[MQTT] Max reconnect attempts reached. Falling back to HTTP polling.');
     }
   }
 
-  // subscribe() hanya mendaftarkan topik, tidak mendaftarkan listener lagi
   void subscribe(String topic) {
     if (_client.connectionStatus?.state == MqttConnectionState.connected) {
       _client.subscribe(topic, MqttQos.atMostOnce);
-      print('[MQTT] Subscribed to: $topic');
+      print('[MQTT] Subscribed: $topic');
     } else {
-      print('[MQTT] Cannot subscribe — not connected');
+      print('[MQTT] Cannot subscribe — not connected: $topic');
     }
   }
 
@@ -132,6 +134,9 @@ class MqttService extends GetxService {
       final builder = MqttClientPayloadBuilder();
       builder.addString(jsonEncode(payload));
       _client.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
+      print('[MQTT TX] $topic');
+    } else {
+      print('[MQTT] Cannot publish — not connected');
     }
   }
 

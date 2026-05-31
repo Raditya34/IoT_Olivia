@@ -13,13 +13,14 @@ use App\Models\MasterControl;
 class MqttSubscribe extends Command
 {
     protected $signature   = 'mqtt:subscribe';
-    protected $description = 'Listen data dari HiveMQ Cloud (mendukung 1 topik gabungan maupun modular) dan re-publish ke Flutter';
+    protected $description = 'Listen data dari HiveMQ Cloud dan re-publish ke Flutter';
 
-    // Buffer in-memory: fallback untuk menyusun data jika menggunakan sistem modular terpisah
+    // Buffer in-memory untuk fallback jalur modular
     private array $buffer = [
-        'OLIVIA-01' => null,
-        'OLIVIA-02' => null,
-        'OLIVIA-03' => null,
+        'OLIVIA-01'     => null,
+        'OLIVIA-02'     => null,
+        'OLIVIA-03'     => null,
+        'OLIVIA-MASTER' => null, // ✅ BARU: Tambah entry untuk Master
     ];
 
     private ?MqttClient $mqtt = null;
@@ -32,9 +33,9 @@ class MqttSubscribe extends Command
         $username = env('MQTT_USERNAME', 'Olivia_IoT');
         $password = env('MQTT_PASSWORD', 'Olivia12345');
 
-        // Subscribe menggunakan wildcard agar menangkap semua data (termasuk olivia/OLIVIA-01/telemetry)
+        // Wildcard subscribe menangkap semua device termasuk OLIVIA-MASTER
         $subscribeTopik = env('MQTT_SUBSCRIBE_TOPIC', 'olivia/+/telemetry');
-        // Re-publish payload nested ke topik yang didengar oleh aplikasi Flutter
+        // Re-publish ke topik yang didengar Flutter
         $publishTopik   = env('MQTT_PUBLISH_TOPIC', 'olivia/telemetry');
 
         $this->info("Menghubungkan ke $server:$port ...");
@@ -51,62 +52,63 @@ class MqttSubscribe extends Command
 
         try {
             $this->mqtt->connect($settings, true);
-            $this->info("Terhubung! Subscribe: $subscribeTopik → publish: $publishTopik");
+            $this->info("Terhubung! Subscribe: $subscribeTopik → Re-publish: $publishTopik");
 
             $this->mqtt->subscribe($subscribeTopik, function (string $topic, string $message) use ($publishTopik) {
-                // Ekstrak kode device dari topik: olivia/OLIVIA-01/telemetry → OLIVIA-01
+                // Ekstrak device code dari topik: olivia/OLIVIA-MASTER/telemetry → OLIVIA-MASTER
                 $parts      = explode('/', $topic);
                 $deviceCode = $parts[1] ?? 'UNKNOWN';
 
-                $this->line("[" . now() . "] $topic => $message");
+                $this->line("[" . now() . "] [$deviceCode] $message");
                 $data = json_decode($message, true);
 
-                if (!$data) {
+                if (!is_array($data)) {
                     $this->error("Payload tidak valid JSON dari $deviceCode");
                     return;
                 }
 
-                // =========================================================================
-                // OPSI A: JIKA PAYLOAD ADALAH DATA GABUNGAN FULL 1 TOPIK (STRUKTUR NESTED)
-                // =========================================================================
+                // =================================================================
+                // OPSI A: PAYLOAD GABUNGAN / NESTED (dari ESP32 Master V2)
+                // Ditandai dengan adanya key 'arang', 'bleaching', atau 'validasi'
+                // =================================================================
                 if (isset($data['arang']) || isset($data['bleaching']) || isset($data['validasi'])) {
-                    $this->info("⚡ Menerima payload GABUNGAN dari Master ($deviceCode). Memecah data ke database...");
+                    $this->info("⚡ Payload GABUNGAN dari [$deviceCode]. Memproses ke DB...");
 
-                    // 1. Simpan ke Tabel Arang (Unit 1) jika ada di dalam json
+                    // 1. Simpan data Arang ke DB
                     if (isset($data['arang'])) {
                         try {
                             Esp1Arang::create([
                                 'suhu_arang'   => $data['arang']['suhu_arang']   ?? 0.0,
                                 'volume_arang' => $data['arang']['volume_arang'] ?? 0.0,
                             ]);
-                            $this->info(" -> DB Arang berhasil disimpan.");
+                            $this->info("  → DB Arang OK");
                         } catch (\Exception $e) {
-                            $this->error("Gagal simpan DB Arang: " . $e->getMessage());
+                            $this->error("  → Gagal DB Arang: " . $e->getMessage());
                         }
                     }
 
-                    // 2. Simpan ke Tabel Bleaching (Unit 2) jika ada di dalam json
+                    // 2. Simpan data Bleaching ke DB
                     if (isset($data['bleaching'])) {
                         try {
                             Esp2Bleaching::create([
                                 'suhu_bleaching' => $data['bleaching']['suhu_bleaching'] ?? 0.0,
                                 'valve'          => (bool)($data['bleaching']['valve'] ?? false),
-                                'p1'             => (bool)($data['bleaching']['p1'] ?? false),
-                                'p2'             => (bool)($data['bleaching']['p2'] ?? false),
-                                'p3'             => (bool)($data['bleaching']['p3'] ?? false),
-                                'h1'             => (bool)($data['bleaching']['h1'] ?? false),
-                                'h2'             => (bool)($data['bleaching']['h2'] ?? false),
-                                'h3'             => (bool)($data['bleaching']['h3'] ?? false),
-                                'h4'             => (bool)($data['bleaching']['h4'] ?? false),
+                                'p1'             => (bool)($data['bleaching']['p1']    ?? false),
+                                'p2'             => (bool)($data['bleaching']['p2']    ?? false),
+                                'p3'             => (bool)($data['bleaching']['p3']    ?? false),
+                                'h1'             => (bool)($data['bleaching']['h1']    ?? false),
+                                'h2'             => (bool)($data['bleaching']['h2']    ?? false),
+                                'h3'             => (bool)($data['bleaching']['h3']    ?? false),
+                                'h4'             => (bool)($data['bleaching']['h4']    ?? false),
                                 'speed'          => $data['bleaching']['speed'] ?? 0,
                             ]);
-                            $this->info(" -> DB Bleaching berhasil disimpan.");
+                            $this->info("  → DB Bleaching OK");
                         } catch (\Exception $e) {
-                            $this->error("Gagal simpan DB Bleaching: " . $e->getMessage());
+                            $this->error("  → Gagal DB Bleaching: " . $e->getMessage());
                         }
                     }
 
-                    // 3. Simpan ke Tabel Validasi (Unit 3) jika ada di dalam json
+                    // 3. ✅ FIX: Simpan data Validasi ke DB TERMASUK kelayakan & status_layak
                     if (isset($data['validasi'])) {
                         try {
                             Esp3Validasi::create([
@@ -116,46 +118,47 @@ class MqttSubscribe extends Command
                                 'r'               => $data['validasi']['r']               ?? 0,
                                 'g'               => $data['validasi']['g']               ?? 0,
                                 'b'               => $data['validasi']['b']               ?? 0,
+                                // ✅ Kolom ini ada di model tapi sebelumnya tidak di-insert
+                                'kelayakan'       => $data['validasi']['kelayakan']        ?? 0.0,
+                                'status_layak'    => $data['validasi']['status_layak']     ?? 'TIDAK LAYAK',
                             ]);
-                            $this->info(" -> DB Validasi berhasil disimpan.");
+                            $this->info("  → DB Validasi OK (kelayakan=" . ($data['validasi']['kelayakan'] ?? 0) . ")");
                         } catch (\Exception $e) {
-                            $this->error("Gagal simpan DB Validasi: " . $e->getMessage());
+                            $this->error("  → Gagal DB Validasi: " . $e->getMessage());
                         }
                     }
 
-                    // 4. Sinkronisasi status system_on ke tabel master_controls
+                    // 4. Sinkronisasi system_on ke tabel master_controls
                     if (isset($data['system_on'])) {
                         try {
                             MasterControl::query()->updateOrCreate(
-                                [], // kriteria pencarian kosong agar selalu mengupdate baris pertama
+                                [],
                                 ['system_on' => (bool)$data['system_on']]
                             );
+                            $this->info("  → MasterControl sync: system_on=" . ($data['system_on'] ? 'true' : 'false'));
                         } catch (\Exception $e) {
-                            $this->error("Gagal sinkronisasi MasterControl: " . $e->getMessage());
+                            $this->error("  → Gagal sync MasterControl: " . $e->getMessage());
                         }
                     }
 
-                    // 5. LANGSUNG RE-PUBLISH data gabungan utuh ini ke Flutter (Tanpa melalui buffer)
-                    // Dengan cara ini, nilai 'progress_step' & 'system_on' dari hardware ikut terkirim secara real-time!
+                    // 5. Re-publish payload gabungan utuh ke Flutter via topic olivia/telemetry
+                    //    Flutter subscribe ke 'olivia/telemetry' (tanpa device code)
                     try {
-                        $this->mqtt->publish($publishTopik, json_encode($data), 0);
-                        $this->line(" >> Re-published JSON gabungan ke Flutter via [$publishTopik]");
+                        $this->mqtt->publish($publishTopik, $message, 0);
+                        $this->line("  >> Re-published ke Flutter [$publishTopik]");
                     } catch (\Exception $e) {
-                        $this->error("Gagal re-publish gabungan: " . $e->getMessage());
+                        $this->error("  >> Gagal re-publish: " . $e->getMessage());
                     }
 
                 } else {
-                    // =========================================================================
-                    // OPSI B: FALLBACK JALUR MODULAR LAMA (JIKA DEVICE KIRIM SECARA TERPISAH)
-                    // =========================================================================
-
-                    // 1. Simpan ke database sesuai device code masing-masing
+                    // =================================================================
+                    // OPSI B: FALLBACK JALUR MODULAR (device kirim data flat terpisah)
+                    // =================================================================
+                    $this->info("⚙ Payload MODULAR dari [$deviceCode]. Buffering...");
                     $this->simpanKeDatabase($deviceCode, $data);
-
-                    // 2. Update buffer in-memory
                     $this->buffer[$deviceCode] = $data;
 
-                    // 3. Jika minimal OLIVIA-01 atau OLIVIA-02 mengirim data, satukan dan re-publish
+                    // Re-publish hanya jika minimal satu device sudah punya data
                     if ($this->buffer['OLIVIA-01'] !== null || $this->buffer['OLIVIA-02'] !== null) {
                         $this->republishNested($publishTopik);
                     }
@@ -171,7 +174,7 @@ class MqttSubscribe extends Command
     }
 
     /**
-     * Fallback: Simpan raw data untuk sistem modular terpisah
+     * Fallback: Simpan raw data flat dari device modular terpisah
      */
     private function simpanKeDatabase(string $deviceCode, array $data): void
     {
@@ -200,17 +203,19 @@ class MqttSubscribe extends Command
                     'r'               => $data['r']               ?? 0,
                     'g'               => $data['g']               ?? 0,
                     'b'               => $data['b']               ?? 0,
+                    'kelayakan'       => $data['kelayakan']        ?? 0.0,
+                    'status_layak'    => $data['status_layak']     ?? 'TIDAK LAYAK',
                 ]),
                 default => $this->warn("Device tidak dikenal: $deviceCode"),
             };
-            $this->info("DB $deviceCode disimpan (Jalur Modular).");
+            $this->info("  → DB $deviceCode OK (Jalur Modular)");
         } catch (\Exception $e) {
-            $this->error("Gagal simpan DB $deviceCode: " . $e->getMessage());
+            $this->error("  → Gagal DB $deviceCode: " . $e->getMessage());
         }
     }
 
     /**
-     * Fallback: Susun data nested dari buffer in-memory jika data masuk secara modular terpisah
+     * Fallback: Susun payload nested dari buffer in-memory untuk jalur modular
      */
     private function republishNested(string $publishTopik): void
     {
@@ -218,47 +223,47 @@ class MqttSubscribe extends Command
         $d2 = $this->buffer['OLIVIA-02'] ?? [];
         $d3 = $this->buffer['OLIVIA-03'] ?? [];
 
-        // Ambil status system_on terakhir dari database jika ada
-        $master = MasterControl::first();
-        $isSystemOn = $master ? (bool)$master->system_on : true;
+        $master     = MasterControl::first();
+        $isSystemOn = $master ? (bool)$master->system_on : false;
 
         $payload = json_encode([
-            'system_on'     => $isSystemOn,
-            'progress_step' => 0, // default fallback nilai progress
+            'system_on' => $isSystemOn,
 
             'arang' => [
-                'suhu_arang'   => $d1['suhu_arang']   ?? ($d1['arang']['suhu_arang'] ?? 0.0),
-                'volume_arang' => $d1['volume_arang']  ?? ($d1['arang']['volume_arang'] ?? 0.0),
+                'suhu_arang'   => $d1['suhu_arang']   ?? 0.0,
+                'volume_arang' => $d1['volume_arang']  ?? 0.0,
             ],
 
             'bleaching' => [
-                'suhu_bleaching' => $d2['suhu_bleaching'] ?? ($d2['bleaching']['suhu_bleaching'] ?? 0.0),
-                'valve' => (bool)($d2['valve'] ?? ($d2['bleaching']['valve'] ?? false)),
-                'p1'    => (bool)($d2['p1']    ?? ($d2['bleaching']['p1'] ?? false)),
-                'p2'    => (bool)($d2['p2']    ?? ($d2['bleaching']['p2'] ?? false)),
-                'p3'    => (bool)($d2['p3']    ?? ($d2['bleaching']['p3'] ?? false)),
-                'h1'    => (bool)($d2['h1']    ?? ($d2['bleaching']['h1'] ?? false)),
-                'h2'    => (bool)($d2['h2']    ?? ($d2['bleaching']['h2'] ?? false)),
-                'h3'    => (bool)($d2['h3']    ?? ($d2['bleaching']['h3'] ?? false)),
-                'h4'    => (bool)($d2['h4']    ?? ($d2['bleaching']['h4'] ?? false)),
-                'speed' => $d2['speed'] ?? ($d2['bleaching']['speed'] ?? 0),
+                'suhu_bleaching' => $d2['suhu_bleaching'] ?? 0.0,
+                'valve' => (bool)($d2['valve'] ?? false),
+                'p1'    => (bool)($d2['p1']    ?? false),
+                'p2'    => (bool)($d2['p2']    ?? false),
+                'p3'    => (bool)($d2['p3']    ?? false),
+                'h1'    => (bool)($d2['h1']    ?? false),
+                'h2'    => (bool)($d2['h2']    ?? false),
+                'h3'    => (bool)($d2['h3']    ?? false),
+                'h4'    => (bool)($d2['h4']    ?? false),
+                'speed' => $d2['speed'] ?? 0,
             ],
 
             'validasi' => [
-                'volume_validasi' => $d3['volume_validasi'] ?? ($d3['validasi']['volume_validasi'] ?? 0.0),
-                'turbidity'       => $d3['turbidity']       ?? ($d3['validasi']['turbidity'] ?? 0.0),
-                'viscosity'       => $d3['viscosity']       ?? ($d3['validasi']['viscosity'] ?? 0.0),
-                'r'               => $d3['r']               ?? ($d3['validasi']['r'] ?? 0),
-                'g'               => $d3['g']               ?? ($d3['validasi']['g'] ?? 0),
-                'b'               => $d3['b']               ?? ($d3['validasi']['b'] ?? 0),
+                'volume_validasi' => $d3['volume_validasi'] ?? 0.0,
+                'turbidity'       => $d3['turbidity']       ?? 0.0,
+                'viscosity'       => $d3['viscosity']       ?? 0.0,
+                'r'               => $d3['r']               ?? 0,
+                'g'               => $d3['g']               ?? 0,
+                'b'               => $d3['b']               ?? 0,
+                'kelayakan'       => $d3['kelayakan']        ?? 0.0,
+                'status_layak'    => $d3['status_layak']     ?? 'TIDAK LAYAK',
             ],
         ]);
 
         try {
             $this->mqtt->publish($publishTopik, $payload, 0);
-            $this->line(" >> Re-published nested ke $publishTopik (Jalur Modular)");
+            $this->line("  >> Re-published nested ke $publishTopik (Jalur Modular)");
         } catch (\Exception $e) {
-            $this->error("Gagal re-publish: " . $e->getMessage());
+            $this->error("  >> Gagal re-publish: " . $e->getMessage());
         }
     }
 }

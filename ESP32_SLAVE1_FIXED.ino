@@ -19,13 +19,26 @@ const int echoPin = 18;
 // PIN RS485
 // ===============================
 #define RXD2 16
+// Status sistem (dapat dikontrol via RS485)
+bool system_on = false;
 #define TXD2 17
 #define RS485_DIR 4
 HardwareSerial RS485(2);
+  // Proses command masuk via RS485 (jika ada)
+  if (RS485.available() > 0) {
+    String raw = RS485.readStringUntil('\n');
+    raw.trim();
+    if (raw.startsWith("CTRL:")) {
+      String v = raw.substring(5);
+      if (v == "1") { system_on = true; Serial.println("[CMD] SYSTEM ON (via RS485)"); }
+      else if (v == "0") { system_on = false; Serial.println("[CMD] SYSTEM OFF (via RS485)"); }
+    }
+  }
 
-// Status sistem
-bool system_on = false;
-
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastSendTime < sendInterval) {
+    return;
+  }
 const float tinggiWadah = 29.0;     // cm
 const float diameterWadah = 30.0;   // cm
 const float radiusWadah = diameterWadah / 2.0;
@@ -58,17 +71,6 @@ void setup() {
 }
 
 void loop() {
-  // Proses command masuk via RS485 (jika ada)
-  if (RS485.available() > 0) {
-    String raw = RS485.readStringUntil('\n');
-    raw.trim();
-    if (raw.startsWith("CTRL:")) {
-      String v = raw.substring(5);
-      if (v == "1") { system_on = true; Serial.println("[CMD] SYSTEM ON (via RS485)"); }
-      else if (v == "0") { system_on = false; Serial.println("[CMD] SYSTEM OFF (via RS485)"); }
-    }
-  }
-
   unsigned long currentMillis = millis();
   if (currentMillis - lastSendTime < sendInterval) {
     return;
