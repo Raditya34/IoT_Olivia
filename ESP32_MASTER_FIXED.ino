@@ -17,8 +17,8 @@ const char* mqtt_user      = "Olivia_IoT";
 const char* mqtt_pass      = "Olivia12345";
 const char* mqtt_client_id = "esp32_master_olivia";
 
-// ✅ FIX #1: UBAH TOPIC PUBLISH DARI olivia/purifikasi/telemetry → olivia/telemetry
-const char* topic_publish     = "olivia/telemetry"; 
+// ✅ FIX #1: PUBLISH KE TOPIK 3 LEVEL agar sesuai dengan backend subscribe olivia/+/telemetry
+const char* topic_publish     = "olivia/OLIVIA-01/telemetry"; 
 // Subscribe wildcard to accept both plain control and request/response subtopics
 const char* topic_sub_control = "olivia/control/#";
 
@@ -330,6 +330,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     if (doc.containsKey("system_on")) {
       system_on = doc["system_on"].as<bool>();
       Serial.print("Sistem diubah ke -> "); Serial.println(system_on ? "ON" : "OFF");
+      // Forward control to slaves over RS485
+      sendRS485Control(system_on);
     }
   }
 }
@@ -373,6 +375,18 @@ void sendToLaravelAPI(String endpoint, String jsonPayload) {
     Serial.printf("[HTTP API] Post to %s | Code response: %d\n", endpoint.c_str(), httpResponseCode);
     http.end();
   }
+}
+
+// Kirim command kontrol ke seluruh slave via RS485
+void sendRS485Control(bool on) {
+  String msg = String("CTRL:") + (on ? "1" : "0");
+  digitalWrite(RS485_DIR, HIGH); // Transmit
+  delay(5);
+  RS485.println(msg);
+  RS485.flush();
+  delay(5);
+  digitalWrite(RS485_DIR, LOW); // Receive
+  Serial.print("[RS485 SENT] "); Serial.println(msg);
 }
 
 // ==========================================

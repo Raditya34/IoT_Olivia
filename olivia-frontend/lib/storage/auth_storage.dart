@@ -16,6 +16,7 @@ class AuthStorage {
     await prefs.setString(_tokenKey, token);
     await prefs.setString(_nameKey, name);
     await prefs.setString(_emailKey, email);
+    await prefs.setBool('logged_in', true);
   }
 
   /// Mengambil token untuk Authorization Header
@@ -42,5 +43,6 @@ class AuthStorage {
     await prefs.remove(_tokenKey);
     await prefs.remove(_nameKey);
     await prefs.remove(_emailKey);
+    await prefs.setBool('logged_in', false);
   }
 }

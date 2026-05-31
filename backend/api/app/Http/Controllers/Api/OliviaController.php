@@ -56,6 +56,8 @@ class OliviaController extends Controller
                         'r'               => $esp3 ? (int)$esp3->r : 0,
                         'g'               => $esp3 ? (int)$esp3->g : 0,
                         'b'               => $esp3 ? (int)$esp3->b : 0,
+                        'kelayakan'       => $esp3 ? (float)$esp3->kelayakan : 0.0,
+                        'status_layak'    => $esp3 ? $esp3->status_layak : 'TIDAK LAYAK',
                     ]
                 ]
             ], 200);
@@ -137,6 +139,8 @@ class OliviaController extends Controller
                 'r'               => $data['r'] ?? 0,
                 'g'               => $data['g'] ?? 0,
                 'b'               => $data['b'] ?? 0,
+                'kelayakan'       => $data['kelayakan'] ?? 0.0,
+                'status_layak'    => $data['status_layak'] ?? 'TIDAK LAYAK',
             ]);
             return response()->json(['status' => 'success', 'data' => $res], 200);
         } catch (\Exception $e) {

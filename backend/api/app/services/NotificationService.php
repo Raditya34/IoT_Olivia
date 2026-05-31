@@ -65,7 +65,7 @@ class NotificationService
             // Ambil data sensor arang terakhir sebelum selesai
             $lastArang = Esp1Arang::latest()->first();
             $detailsArang = $lastArang
-                ? "Suhu Akhir: {$lastArang->suhu}°C | Volume: {$lastArang->volume}L"
+                ? "Suhu Akhir: {$lastArang->suhu_arang}°C | Volume: {$lastArang->volume_arang}L"
                 : "Data sensor tidak terekam";
 
             self::add($userId, 'arang', 'completed', $detailsArang);
@@ -84,7 +84,7 @@ class NotificationService
             // Ambil data aktuator & sensor bleaching terakhir sebelum selesai
             $lastBleach = Esp2Bleaching::latest()->first();
             $detailsBleach = $lastBleach
-                ? "Suhu: {$lastBleach->suhu}°C | Motor: {$lastBleach->motor_ac_speed} RPM | Heater1: " . ($lastBleach->heater_1 ? 'ON':'OFF') . " | P1: " . ($lastBleach->pompa_1 ? 'ON':'OFF')
+                ? "Suhu: {$lastBleach->suhu_bleaching}°C | Motor: {$lastBleach->speed} RPM | Heater1: " . ($lastBleach->h1 ? 'ON':'OFF') . " | P1: " . ($lastBleach->p1 ? 'ON':'OFF')
                 : "Data sensor tidak terekam";
 
             self::add($userId, 'bleaching', 'completed', $detailsBleach);
@@ -103,7 +103,7 @@ class NotificationService
             // Ambil data sensor kualitas validasi akhir
             $lastValidasi = Esp3Validasi::latest()->first();
             $detailsValidasi = $lastValidasi
-                ? "Vol: {$lastValidasi->volume}L | Turbidity: {$lastValidasi->turbidity} NTU | Viskositas: {$lastValidasi->viskositas} cPs | Warna: {$lastValidasi->warna}"
+                ? "Vol: {$lastValidasi->volume_validasi}L | Turbidity: {$lastValidasi->turbidity} NTU | Viskositas: {$lastValidasi->viscosity} cPs | Warna: RGB({$lastValidasi->r},{$lastValidasi->g},{$lastValidasi->b})"
                 : "Data sensor tidak terekam";
 
             self::add($userId, 'validasi', 'completed', $detailsValidasi);

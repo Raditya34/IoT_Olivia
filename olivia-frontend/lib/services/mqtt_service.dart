@@ -32,6 +32,8 @@ class MqttService extends GetxService {
     _clientId = 'flutter_olivia_${DateTime.now().millisecondsSinceEpoch}';
     _client = MqttServerClient.withPort(_host, _clientId, _port);
     _setupClient();
+    // Auto-connect MQTT saat service diinisialisasi
+    connect();
   }
 
   void _setupClient() {
