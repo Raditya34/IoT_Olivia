@@ -9,6 +9,8 @@ use App\Models\Esp3Validasi;
 use App\Models\MasterControl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use PhpMqtt\Client\MqttClient;
+use PhpMqtt\Client\ConnectionSettings;
 
 class OliviaController extends Controller
 {
@@ -155,6 +157,38 @@ class OliviaController extends Controller
                 $master->system_on = $status;
                 $master->save();
             }
+            // Setelah update, publish acknowledgement ke topic control/response
+            try {
+                $server   = env('MQTT_HOST', '127.0.0.1');
+                $port     = (int) env('MQTT_PORT', 1883);
+                $clientId = env('MQTT_CLIENT_ID', 'laravel_pub') . '_' . uniqid();
+                $username = env('MQTT_USERNAME', null);
+                $password = env('MQTT_PASSWORD', null);
+
+                $mqtt = new MqttClient($server, $port, $clientId, MqttClient::MQTT_3_1_1);
+                $settings = (new ConnectionSettings)
+                    ->setUsername($username)
+                    ->setPassword($password)
+                    ->setKeepAliveInterval(60)
+                    ->setConnectTimeout(10)
+                    ->setUseTls(true)
+                    ->setTlsSelfSignedAllowed(false);
+
+                $mqtt->connect($settings, true);
+
+                $payload = json_encode([
+                    'system_on' => (bool) $master->system_on,
+                    'timestamp' => now()->toIso8601String(),
+                    'source' => 'api'
+                ]);
+
+                $responseTopic = env('MQTT_CONTROL_RESPONSE_TOPIC', 'olivia/control/response');
+                $mqtt->publish($responseTopic, $payload, 0);
+                $mqtt->disconnect();
+            } catch (\Exception $e) {
+                Log::warning('MQTT publish control response failed: ' . $e->getMessage());
+            }
+
             return response()->json(['status' => 'success', 'data' => $master], 200);
         } catch (\Exception $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);

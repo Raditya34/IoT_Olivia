@@ -19,7 +19,8 @@ const char* mqtt_client_id = "esp32_master_olivia";
 
 // ✅ FIX #1: UBAH TOPIC PUBLISH DARI olivia/purifikasi/telemetry → olivia/telemetry
 const char* topic_publish     = "olivia/telemetry"; 
-const char* topic_sub_control = "olivia/control";
+// Subscribe wildcard to accept both plain control and request/response subtopics
+const char* topic_sub_control = "olivia/control/#";
 
 const String laravel_base_url = "https://iotolivia-production.up.railway.app/api/";
 

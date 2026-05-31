@@ -35,7 +35,7 @@ class MqttSubscribe extends Command
         // Subscribe menggunakan wildcard agar menangkap semua data (termasuk olivia/OLIVIA-01/telemetry)
         $subscribeTopik = env('MQTT_SUBSCRIBE_TOPIC', 'olivia/+/telemetry');
         // Re-publish payload nested ke topik yang didengar oleh aplikasi Flutter
-        $publishTopik   = env('MQTT_PUBLISH_TOPIC', 'olivia/purifikasi/telemetry');
+        $publishTopik   = env('MQTT_PUBLISH_TOPIC', 'olivia/telemetry');
 
         $this->info("Menghubungkan ke $server:$port ...");
 

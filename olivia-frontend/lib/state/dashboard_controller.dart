@@ -51,6 +51,7 @@ class DashboardController extends GetxController {
 
   StreamSubscription? _mqttSubscription;
   StreamSubscription? _connectionSubscription;
+  Timer? _pollingTimer;
 
   @override
   void onInit() {
@@ -58,6 +59,7 @@ class DashboardController extends GetxController {
     _setupConnectionListener();
     fetchDashboardData();
     _initMqttListen();
+    _startPollingFallback();
   }
 
   void _setupConnectionListener() {
@@ -67,10 +69,22 @@ class DashboardController extends GetxController {
     });
   }
 
+  /// 🔄 AUTO-POLLING FALLBACK: Ketika MQTT tidak terhubung, polling API setiap 2 detik
+  void _startPollingFallback() {
+    _pollingTimer = Timer.periodic(Duration(seconds: 2), (timer) {
+      if (!isConnected.value) {
+        // Hanya polling jika MQTT tidak terhubung
+        debugPrint('[POLLING] Fetching data from API...');
+        fetchDashboardData();
+      }
+    });
+  }
+
   @override
   void onClose() {
     _mqttSubscription?.cancel();
     _connectionSubscription?.cancel();
+    _pollingTimer?.cancel();
     super.onClose();
   }
 
@@ -79,61 +93,67 @@ class DashboardController extends GetxController {
   // ===========================================================================
   Future<void> fetchDashboardData() async {
     try {
-      isLoading.value = true;
+      // Only show loading on first load, not on polling
+      final isFirstLoad = isLoading.value;
+      if (isFirstLoad) isLoading.value = true;
 
       // 1. Ambil data dari endpoint /dashboard
       final response = await _api.get('/dashboard');
 
-      // 2. Cek apakah response sukses (Status Code 200) dan data tidak null
-      if (response != null && response.statusCode == 200) {
-        // 3. Pastikan response memiliki struktur ['status'] == 'success'
-        if (response.data != null && response.data['status'] == 'success') {
-          // 4. Ambil sub-object 'data' yang berisi 'arang', 'bleaching', dan 'validasi'
-          final telemetry = response.data['data'];
+      // 2. Proses response yang bisa berbentuk Map atau Response object
+      dynamic data;
 
-          if (telemetry != null) {
-            // 5. Alirkan data JSON tersebut ke fungsi inti parser bawaan Anda
-            _parseAndUpdates(Map<String, dynamic>.from(telemetry));
+      // Handle jika response adalah Map (dari ApiService)
+      if (response is Map) {
+        data = response;
+      }
+      // Handle jika response memiliki properti .data (Response object)
+      else if (response != null && response.data != null) {
+        data = response.data;
+      }
 
-            debugPrint(
-                "Simulasi API Terkoneksi Sukses: Data Berhasil Dimasukkan!");
-          }
+      // 3. Cek struktur response: harus ada 'status' == 'success' dan 'data'
+      if (data != null && data['status'] == 'success') {
+        final telemetry = data['data'];
+
+        if (telemetry != null) {
+          // 4. Parse dan update UI dengan data dari API
+          _parseAndUpdates(Map<String, dynamic>.from(telemetry));
+          debugPrint('[API] Dashboard data fetched successfully');
+        } else {
+          debugPrint('[API] Warning: No telemetry data in response');
         }
+      } else {
+        debugPrint('[API] Response does not have success status');
       }
     } catch (e) {
-      debugPrint("Error HTTP Fetch Dashboard: $e");
+      debugPrint("[API] Error fetching dashboard: $e");
+      // Jangan throw error, tetap tampilkan data terakhir yang ada
     } finally {
       isLoading.value = false;
     }
   }
 
   // ===========================================================================
-  // TOGGLE ON/OFF UTAMA (Dikirim ke Laravel)
+  // TOGGLE ON/OFF UTAMA (Dikirim ke Laravel + MQTT sebagai backup)
   // ===========================================================================
   Future<void> toggleSystemStatus() async {
-    if (!isConnected.value) {
-      Get.snackbar(
-        "Koneksi Gagal",
-        "MQTT tidak terhubung dengan sistem. Periksa koneksi internet Anda.",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withOpacity(0.8),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
-      return;
-    }
-
     try {
       bool targetStatus = !systemOn.value;
 
-      // Publish ke MQTT terlebih dahulu untuk response real-time
-      _mqttService.publish('olivia/control/request', {
-        'command': 'system_toggle',
-        'system_on': targetStatus,
-        'timestamp': DateTime.now().toIso8601String(),
-      });
+      // 1️⃣ PRIORITAS UTAMA: Publish ke MQTT jika tersedia (untuk response real-time)
+      if (isConnected.value) {
+        _mqttService.publish('olivia/control/request', {
+          'command': 'system_toggle',
+          'system_on': targetStatus,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        debugPrint('[TOGGLE] MQTT command sent');
+      } else {
+        debugPrint('[TOGGLE] MQTT not connected, using API fallback');
+      }
 
-      // Kirim juga ke API untuk backup/logging
+      // 2️⃣ SELALU kirim ke API (baik MQTT connected atau tidak)
       final response = await _api.post('/control', {
         'system_on': targetStatus,
       }).timeout(
@@ -152,7 +172,9 @@ class DashboardController extends GetxController {
         systemOn.value = targetStatus;
         Get.snackbar(
           "Sukses",
-          targetStatus ? "Sistem dihidupkan" : "Sistem dimatikan",
+          targetStatus
+              ? "Sistem dihidupkan ${isConnected.value ? '' : '(via API)'}"
+              : "Sistem dimatikan ${isConnected.value ? '' : '(via API)'}",
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: Colors.green.withOpacity(0.8),
           colorText: Colors.white,
@@ -161,6 +183,8 @@ class DashboardController extends GetxController {
         if (!targetStatus) {
           _resetAllRealtimeMetrics();
         }
+        // Refresh data dari server untuk sinkronisasi
+        fetchDashboardData();
       } else {
         throw Exception('Server returned unsuccessful status');
       }
