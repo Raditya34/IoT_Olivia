@@ -72,7 +72,10 @@ class MqttService extends GetxService {
             try {
               final Map<String, dynamic> parsed = jsonDecode(pt);
               onMessageReceived?.call(msg.topic, parsed);
-              _payloadController.add(parsed);
+              _payloadController.add({
+                'topic': msg.topic,
+                'data': parsed,
+              });
               print('[MQTT RX] Topic: ${msg.topic}');
             } catch (e) {
               print('[MQTT] Error parsing payload dari ${msg.topic}: $e');
