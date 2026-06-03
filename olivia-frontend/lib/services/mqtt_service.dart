@@ -40,7 +40,7 @@ class MqttService extends GetxService {
     _client.keepAlivePeriod = 60;
     _client.secure = true;
     _client.securityContext = SecurityContext.defaultContext;
-    _client.onBadCertificate = (_) => true;
+    _client.onBadCertificate = (dynamic cert) => true;
     _client.onDisconnected = _onDisconnected;
 
     final connMess = MqttConnectMessage()

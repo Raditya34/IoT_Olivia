@@ -18,7 +18,7 @@ const char* mqtt_pass      = "Olivia12345";
 const char* mqtt_client_id = "esp32_master_olivia";
 
 // ✅ FIX #1: PUBLISH KE TOPIK 3 LEVEL agar sesuai dengan backend subscribe olivia/+/telemetry
-const char* topic_publish     = "olivia/+/telemetry"; 
+const char* topic_publish     = "olivia/telemetry"; 
 // Subscribe wildcard to accept both plain control and request/response subtopics
 const char* topic_sub_control = "olivia/control/#";
 

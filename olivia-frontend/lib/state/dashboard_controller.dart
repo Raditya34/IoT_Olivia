@@ -44,12 +44,9 @@ class DashboardController extends GetxController {
   var g = 0.obs;
   var b = 0.obs;
 
-  // --- FUZZY LOGIC (dari ESP32 Master) ---
+  // --- FUZZY LOGIC ---
   var kelayakan = 0.0.obs;
   var statusLayak = "Menunggu Analisa...".obs;
-
-  // ✅ FIX: warnaLabel sekarang diturunkan dari statusLayak (bukan dihitung ulang di sini)
-  // sehingga konsisten dengan hasil fuzzy logic dari ESP32 Master
   var warnaLabel = "Menunggu Analisa...".obs;
 
   StreamSubscription? _mqttSubscription;
@@ -69,19 +66,12 @@ class DashboardController extends GetxController {
     _connectionSubscription = _mqttService.isConnected.listen((connected) {
       isConnected.value = connected;
       connectionMessage.value = connected ? "Terhubung" : "Tidak Terhubung";
-      debugPrint('[MQTT] Connection status: $connected');
     });
   }
 
-  /// 🔄 AUTO-POLLING FALLBACK: polling API tiap 3 detik jika MQTT tidak terhubung
   void _startPollingFallback() {
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      // ✅ Polling tetap berjalan untuk data sensor walaupun system off
-      // (bukan hanya saat MQTT tidak terhubung)
-      if (!isConnected.value) {
-        debugPrint('[POLLING] MQTT offline → Fetching data from API...');
-        fetchDashboardData();
-      }
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!isConnected.value) fetchDashboardData();
     });
   }
 
@@ -94,13 +84,11 @@ class DashboardController extends GetxController {
   }
 
   // ===========================================================================
-  // HTTP API FETCH (Sinkronisasi awal & fallback)
+  // HTTP API FETCH
   // ===========================================================================
   Future<void> fetchDashboardData() async {
     try {
-      final isFirstLoad = isLoading.value;
-      if (isFirstLoad) isLoading.value = true;
-
+      if (isLoading.value) isLoading.value = true;
       final response = await _api.get('/dashboard');
 
       dynamic data;
@@ -114,36 +102,30 @@ class DashboardController extends GetxController {
         final telemetry = data['data'];
         if (telemetry != null) {
           _parseAndUpdates(Map<String, dynamic>.from(telemetry));
-          debugPrint('[API] Dashboard data fetched successfully');
         }
-      } else {
-        debugPrint('[API] Response tidak berisi status success');
       }
     } catch (e) {
-      debugPrint("[API] Error fetching dashboard: $e");
+      debugPrint("[API] Error: $e");
     } finally {
       isLoading.value = false;
     }
   }
 
   // ===========================================================================
-  // TOGGLE ON/OFF SISTEM (dari Flutter → Laravel → MQTT → ESP32 via RS485)
+  // TOGGLE ON/OFF
   // ===========================================================================
   Future<void> toggleSystemStatus() async {
     try {
       bool targetStatus = !systemOn.value;
 
-      // 1️⃣ Kirim via MQTT untuk response real-time (jika tersedia)
       if (isConnected.value) {
         _mqttService.publish('olivia/control/request', {
           'command': 'system_toggle',
           'system_on': targetStatus,
           'timestamp': DateTime.now().toIso8601String(),
         });
-        debugPrint('[TOGGLE] MQTT command sent: system_on=$targetStatus');
       }
 
-      // 2️⃣ Selalu kirim ke API Laravel (sebagai sumber kebenaran utama)
       final response = await _api.post('/control', {
         'system_on': targetStatus,
       }).timeout(
@@ -158,23 +140,28 @@ class DashboardController extends GetxController {
       if (isSuccess) {
         systemOn.value = targetStatus;
 
+        if (targetStatus) {
+          // ✅ FIX: Saat sistem di-ON, reset SEMUA data sensor & aktuator
+          // agar progress dimulai dari awal (step 0), bukan melanjutkan data lama
+          _resetAllForFreshStart();
+          debugPrint('[TOGGLE] System ON → Reset semua data, mulai dari awal');
+        } else {
+          // Saat sistem di-OFF: reset hanya aktuator, sensor tetap tampil
+          _resetActuatorsOnly();
+          debugPrint('[TOGGLE] System OFF → Hanya aktuator direset');
+        }
+
         Get.snackbar(
           "Sukses",
-          targetStatus ? "Sistem dihidupkan" : "Sistem dimatikan",
+          targetStatus
+              ? "Sistem dihidupkan — memulai dari awal"
+              : "Sistem dimatikan",
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: Colors.green.withOpacity(0.8),
           colorText: Colors.white,
           duration: const Duration(seconds: 2),
         );
 
-        // ✅ FIX: Saat sistem dimatikan, HANYA reset status aktuator
-        // Data sensor (suhu, volume, ntu, dll) TIDAK direset
-        // sehingga tetap tampil di UI
-        if (!targetStatus) {
-          _resetActuatorsOnly();
-        }
-
-        // Refresh data dari server
         fetchDashboardData();
       } else {
         throw Exception('Server returned unsuccessful status');
@@ -207,9 +194,7 @@ class DashboardController extends GetxController {
   // ===========================================================================
   void _initMqttListen() {
     _mqttSubscription = _mqttService.payloadStream.listen((payload) {
-      if (payload.isNotEmpty) {
-        _parseAndUpdates(payload);
-      }
+      if (payload.isNotEmpty) _parseAndUpdates(payload);
     });
   }
 
@@ -217,12 +202,18 @@ class DashboardController extends GetxController {
   // CORE PARSING LOGIC
   // ===========================================================================
   void _parseAndUpdates(Map<String, dynamic> json) {
-    // 1. Status saklar utama
     if (json.containsKey('system_on')) {
-      systemOn.value = json['system_on'] == true || json['system_on'] == 1;
+      bool incomingState = json['system_on'] == true || json['system_on'] == 1;
+      // Deteksi transisi OFF → ON dari hardware (misal tombol fisik ditekan)
+      if (incomingState == true && systemOn.value == false) {
+        // Hardware baru saja di-ON (misal via tombol fisik)
+        // Reset progress agar dimulai dari awal
+        _resetAllForFreshStart();
+        debugPrint('[MQTT] Transisi OFF→ON dari hardware → Reset progress');
+      }
+      systemOn.value = incomingState;
     }
 
-    // 2. Data Arang
     if (json['arang'] != null) {
       var arang = json['arang'];
       suhuArang.value = _toDouble(arang['suhu_arang']);
@@ -230,54 +221,45 @@ class DashboardController extends GetxController {
       _updateSparkline(sparkSuhuArang, suhuArang.value);
     }
 
-    // 3. Data Bleaching
     if (json['bleaching'] != null) {
-      var bleaching = json['bleaching'];
-      suhuBleaching.value = _toDouble(bleaching['suhu_bleaching']);
-      bleachValve.value = bleaching['valve'] ?? false;
-      bleachP1.value = bleaching['p1'] ?? false;
-      bleachP2.value = bleaching['p2'] ?? false;
-      bleachP3.value = bleaching['p3'] ?? false;
-      bleachH1.value = bleaching['h1'] ?? false;
-      bleachH2.value = bleaching['h2'] ?? false;
-      bleachH3.value = bleaching['h3'] ?? false;
-      bleachH4.value = bleaching['h4'] ?? false;
-      bleachSpeed.value = bleaching['speed'] ?? 0;
+      var bl = json['bleaching'];
+      suhuBleaching.value = _toDouble(bl['suhu_bleaching']);
+      bleachValve.value = bl['valve'] ?? false;
+      bleachP1.value = bl['p1'] ?? false;
+      bleachP2.value = bl['p2'] ?? false;
+      bleachP3.value = bl['p3'] ?? false;
+      bleachH1.value = bl['h1'] ?? false;
+      bleachH2.value = bl['h2'] ?? false;
+      bleachH3.value = bl['h3'] ?? false;
+      bleachH4.value = bl['h4'] ?? false;
+      bleachSpeed.value = bl['speed'] ?? 0;
       _updateSparkline(sparkSuhuBleaching, suhuBleaching.value);
     }
 
-    // 4. Data Validasi
     if (json['validasi'] != null) {
-      var validasi = json['validasi'];
+      var v = json['validasi'];
+      validasiVol.value = _toDouble(v['volume_validasi']);
+      ntu.value = _toDouble(v['turbidity']);
+      viscosity.value = _toDouble(v['viscosity']);
+      r.value = (v['r'] as num?)?.toInt() ?? 0;
+      g.value = (v['g'] as num?)?.toInt() ?? 0;
+      b.value = (v['b'] as num?)?.toInt() ?? 0;
 
-      // ✅ Data sensor selalu diupdate, tidak tergantung system_on
-      validasiVol.value = _toDouble(validasi['volume_validasi']);
-      ntu.value = _toDouble(validasi['turbidity']);
-      viscosity.value = _toDouble(validasi['viscosity']);
-      r.value = (validasi['r'] as num?)?.toInt() ?? 0;
-      g.value = (validasi['g'] as num?)?.toInt() ?? 0;
-      b.value = (validasi['b'] as num?)?.toInt() ?? 0;
-
-      // ✅ FIX: Ambil hasil Fuzzy dari ESP32 Master
-      if (validasi.containsKey('kelayakan')) {
-        kelayakan.value = _toDouble(validasi['kelayakan']);
+      if (v.containsKey('kelayakan')) {
+        kelayakan.value = _toDouble(v['kelayakan']);
       }
 
-      // ✅ FIX: statusLayak & warnaLabel diambil langsung dari server (bukan dihitung ulang)
-      if (validasi.containsKey('status_layak') &&
-          validasi['status_layak'] != null &&
-          validasi['status_layak'].toString().isNotEmpty) {
-        statusLayak.value = validasi['status_layak'].toString();
-        // Terjemahkan status_layak ke label warna yang user-friendly
-        warnaLabel.value = _translateStatusToWarnaLabel(statusLayak.value);
+      if (v.containsKey('status_layak') &&
+          v['status_layak'] != null &&
+          v['status_layak'].toString().isNotEmpty) {
+        statusLayak.value = v['status_layak'].toString();
+        warnaLabel.value = _translateStatusToLabel(statusLayak.value);
       } else {
-        // Fallback: hitung dari nilai RGB jika server belum kirim status
-        statusLayak.value = getOilColorLabel(r.value, g.value, b.value);
+        statusLayak.value = _fallbackColorLabel(r.value, g.value, b.value);
         warnaLabel.value = statusLayak.value;
       }
     }
 
-    // 5. Update progress step berdasarkan state terkini
     _updateProgressStep();
   }
 
@@ -285,26 +267,32 @@ class DashboardController extends GetxController {
   // PROGRESS STEP LOGIC
   // ===========================================================================
   void _updateProgressStep() {
-    // ✅ FIX: Progress step menggambarkan KONDISI PROSES, bukan hanya saat system_on
-    // Sehingga walaupun sistem dimatikan, kalau ada data sensor, step bisa tetap tampil
+    // ✅ FIX: Progress hanya naik ketika system_on = true
+    // Ketika OFF, progress tetap di posisi terakhir (atau 0 jika baru reset)
+    if (!systemOn.value) {
+      // Tidak update progress saat OFF — biarkan di posisi terakhir
+      // (kecuali jika sudah di-reset oleh _resetAllForFreshStart)
+      return;
+    }
+
     if (bleachP2.value ||
         validasiVol.value > 0 ||
         ntu.value > 0 ||
         kelayakan.value > 0) {
-      progressStep.value = 3; // Tahap Validasi
+      progressStep.value = 3; // Validasi
     } else if (bleachP1.value ||
         suhuBleaching.value > 30 ||
         bleachSpeed.value > 0) {
-      progressStep.value = 2; // Tahap Bleaching
+      progressStep.value = 2; // Bleaching
     } else if (suhuArang.value > 30 || arangVol.value > 0) {
-      progressStep.value = 1; // Tahap Arang
+      progressStep.value = 1; // Arang
     } else {
-      progressStep.value = 0; // Standby
+      progressStep.value = 0; // Standby / baru mulai
     }
   }
 
   // ===========================================================================
-  // HELPER METODE
+  // HELPERS
   // ===========================================================================
   void _updateSparkline(RxList<double> list, double value) {
     if (value > 0 && value != -127.0) {
@@ -321,8 +309,7 @@ class DashboardController extends GetxController {
     return 0.0;
   }
 
-  /// ✅ FIX: Terjemahkan status_layak dari ESP32 ke label UI yang ramah
-  String _translateStatusToWarnaLabel(String status) {
+  String _translateStatusToLabel(String status) {
     switch (status.toUpperCase().trim()) {
       case 'SANGAT LAYAK':
         return 'Sangat Baik (Cerah & Jernih)';
@@ -337,27 +324,20 @@ class DashboardController extends GetxController {
     }
   }
 
-  /// ✅ FIX: Hanya reset STATUS AKTUATOR saat sistem dimatikan
-  /// Data sensor (suhu, volume, ntu, dll) TETAP ditampilkan
-  void _resetActuatorsOnly() {
-    bleachValve.value = false;
-    bleachP1.value = false;
-    bleachP2.value = false;
-    bleachP3.value = false;
-    bleachH1.value = false;
-    bleachH2.value = false;
-    bleachH3.value = false;
-    bleachH4.value = false;
-    bleachSpeed.value = 0;
-    // ⚠️ TIDAK mereset: suhuArang, arangVol, suhuBleaching,
-    //    validasiVol, ntu, viscosity, r, g, b, kelayakan, statusLayak
+  String _fallbackColorLabel(int r, int g, int b) {
+    if (r == 0 && g == 0 && b == 0) return "Menunggu Analisa...";
+    if (r > 200 && g > 180 && b < 130) return "Cerah (Sesuai Standar)";
+    if (r > 150 && g > 100 && b < 50) return "Keruh (Butuh Purifikasi Ulang)";
+    return "Minyak Sedang Diuji";
   }
 
-  /// Reset SEMUA data (dipanggil secara manual/eksplisit jika diperlukan)
-  void resetAllData() {
+  // ✅ Reset SEMUA data (dipanggil saat sistem di-ON ulang agar progress fresh)
+  void _resetAllForFreshStart() {
     suhuArang.value = 0.0;
     arangVol.value = 0.0;
+    sparkSuhuArang.value = [0.0];
     suhuBleaching.value = 0.0;
+    sparkSuhuBleaching.value = [0.0];
     _resetActuatorsOnly();
     validasiVol.value = 0.0;
     ntu.value = 0.0;
@@ -368,14 +348,22 @@ class DashboardController extends GetxController {
     kelayakan.value = 0.0;
     statusLayak.value = "Menunggu Analisa...";
     warnaLabel.value = "Menunggu Analisa...";
-    progressStep.value = 0;
+    progressStep.value = 0; // ✅ Progress kembali ke step 0 "Minyak"
   }
 
-  /// Fallback warna label dari RGB (jika status_layak belum tersedia dari server)
-  String getOilColorLabel(int r, int g, int b) {
-    if (r == 0 && g == 0 && b == 0) return "Menunggu Analisa...";
-    if (r > 200 && g > 180 && b < 130) return "Cerah (Sesuai Standar)";
-    if (r > 150 && g > 100 && b < 50) return "Keruh (Butuh Purifikasi Ulang)";
-    return "Minyak Sedang Diuji";
+  // Reset hanya aktuator (dipanggil saat sistem di-OFF)
+  void _resetActuatorsOnly() {
+    bleachValve.value = false;
+    bleachP1.value = false;
+    bleachP2.value = false;
+    bleachP3.value = false;
+    bleachH1.value = false;
+    bleachH2.value = false;
+    bleachH3.value = false;
+    bleachH4.value = false;
+    bleachSpeed.value = 0;
   }
+
+  // Manual reset (bisa dipanggil dari UI jika diperlukan)
+  void resetAll() => _resetAllForFreshStart();
 }

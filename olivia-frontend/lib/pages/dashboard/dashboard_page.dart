@@ -8,253 +8,360 @@ import '../../widgets/app_scaffold.dart';
 import '../../widgets/progress_timeline.dart';
 import '../../state/dashboard_controller.dart';
 
-// 🌟 Menggunakan GetView agar otomatis terhubung ke DashboardBinding
 class DashboardPage extends GetView<DashboardController> {
   const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<
-        DashboardController>(); // 🌟 Pastikan controller sudah terinisialisasi
+    final ctrl = Get.find<DashboardController>();
     return AppScaffold(
       title: 'Dashboard',
       currentRoute: AppRoutes.dashboard,
       child: RefreshIndicator(
-        onRefresh: () => controller.fetchDashboardData(),
+        onRefresh: () => ctrl.fetchDashboardData(),
         color: AppColors.teal,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: [
-            // Banner Ringkasan Kualitas Warna (Hero)
-            Obx(() => _heroSummary(context, controller)),
-            const SizedBox(height: 16),
+            // ─── Hero Status Kualitas ──────────────────────────
+            Obx(() => _heroQuality(context, ctrl)),
+            const SizedBox(height: 14),
 
-            // Kontrol Switch On/Off Sistem Utama
-            Obx(() => _systemControl(context, controller)),
-            const SizedBox(height: 16),
+            // ─── Kontrol ON/OFF Sistem ────────────────────────
+            Obx(() => _systemControlCard(context, ctrl)),
+            const SizedBox(height: 14),
 
-            // Timeline Tracker Alur Kerja Purifikasi
+            // ─── Progress Timeline ────────────────────────────
             Obx(() => ProgressTimeline(
-                  step: controller.progressStep.value,
-                  active: controller.systemOn.value,
+                  step: ctrl.progressStep.value,
+                  active: ctrl.systemOn.value,
                 )),
-            const SizedBox(height: 24),
+            const SizedBox(height: 22),
 
-            // Monitoring Sensor Utama Keseluruhan Proses
-            _sectionTitle(context, 'Ringkasan Monitoring Proses'),
+            // ─── Ringkasan Sensor ─────────────────────────────
+            _sectionHeader(
+                context, 'Ringkasan Parameter Sensor', Icons.sensors_rounded),
             const SizedBox(height: 10),
-            Obx(() => _processOverview(context, controller)),
-            const SizedBox(height: 24),
+            Obx(() => _sensorSummaryGrid(context, ctrl)),
+            const SizedBox(height: 22),
 
-            // Navigasi Detail Unit Kerja
-            _sectionTitle(context, 'Navigasi Detail Unit'),
+            // ─── Navigasi Unit ────────────────────────────────
+            _sectionHeader(
+                context, 'Detail Per Unit Proses', Icons.grid_view_rounded),
             const SizedBox(height: 10),
-            _processNavigation(context),
-            const SizedBox(height: 24),
+            _unitNavigationRow(context),
+            const SizedBox(height: 22),
 
-            // Hasil Verifikasi / Validasi Kualitas Akhir di Paling Bawah
-            _sectionTitle(context, 'Hasil Verifikasi Akhir'),
+            // ─── Hasil Validasi Akhir ─────────────────────────
+            _sectionHeader(
+                context, 'Hasil Validasi Kualitas', Icons.verified_rounded),
             const SizedBox(height: 10),
-            Obx(() => _validationResultCard(context, controller)),
+            Obx(() => _validationCard(context, ctrl)),
+            const SizedBox(height: 8),
           ],
         ),
       ),
     );
   }
 
-  Widget _heroSummary(BuildContext context, DashboardController controller) {
-    bool isGood = controller.ntu.value < 50 && controller.ntu.value > 0;
+  // ─────────────────────────────────────────────────────────────
+  // HERO: STATUS KUALITAS MINYAK
+  // ─────────────────────────────────────────────────────────────
+  Widget _heroQuality(BuildContext context, DashboardController ctrl) {
+    final ntuVal = ctrl.ntu.value;
+    final bool hasData = ntuVal > 0;
+    final bool isGood = hasData && ntuVal < 50;
+
+    Color bgColor;
+    Color accentColor;
+    IconData icon;
+    String title;
+    String subtitle;
+
+    if (!hasData) {
+      bgColor = AppColors.surface;
+      accentColor = Colors.grey;
+      icon = Icons.hourglass_empty_rounded;
+      title = 'Menunggu Data Sensor...';
+      subtitle = 'Hidupkan sistem untuk memulai pembacaan kualitas minyak';
+    } else if (isGood) {
+      bgColor = Colors.teal.withOpacity(0.08);
+      accentColor = Colors.teal;
+      icon = Icons.check_circle_rounded;
+      title = ctrl.warnaLabel.value;
+      subtitle =
+          'Kekeruhan: ${ntuVal.toStringAsFixed(1)} NTU — Memenuhi standar purifikasi';
+    } else {
+      bgColor = Colors.orange.withOpacity(0.08);
+      accentColor = Colors.orange;
+      icon = Icons.warning_amber_rounded;
+      title = ctrl.warnaLabel.value;
+      subtitle =
+          'Kekeruhan: ${ntuVal.toStringAsFixed(1)} NTU — Masih memerlukan proses';
+    }
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.border)),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accentColor.withOpacity(0.4), width: 1.5),
+      ),
       child: Row(
         children: [
-          Icon(
-            isGood ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-            color: isGood ? Colors.teal : Colors.orange,
-            size: 32,
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: accentColor.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: accentColor, size: 26),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Warna: ${controller.warnaLabel.value}',
-                    style: AppText.h3(context)),
-                const SizedBox(height: 4),
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: accentColor)),
+                const SizedBox(height: 3),
+                Text(subtitle,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+          ),
+          // Fuzzy score badge (jika ada)
+          if (ctrl.kelayakan.value > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${ctrl.kelayakan.value.toStringAsFixed(0)}%',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: accentColor),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SYSTEM CONTROL CARD
+  // ─────────────────────────────────────────────────────────────
+  Widget _systemControlCard(BuildContext context, DashboardController ctrl) {
+    final isOn = ctrl.systemOn.value;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isOn ? Colors.teal.withOpacity(0.4) : AppColors.border,
+          width: isOn ? 1.5 : 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: isOn
+                  ? Colors.teal.withOpacity(0.12)
+                  : Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              isOn ? Icons.power_rounded : Icons.power_off_rounded,
+              color: isOn ? Colors.teal : Colors.grey,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Kontrol Sistem Utama', style: AppText.h3(context)),
+                const SizedBox(height: 2),
                 Text(
-                  isGood
-                      ? 'Kekeruhan Minyak sangat baik (Memenuhi Standar)'
-                      : 'Menunggu proses selesai atau kekeruhan masih tinggi...',
+                  isOn
+                      ? 'Sistem sedang berjalan aktif'
+                      : 'Sistem dalam posisi standby',
                   style: TextStyle(
-                      color: isGood ? Colors.teal : Colors.orange,
-                      fontSize: 13),
+                    fontSize: 12,
+                    color: isOn ? Colors.teal : Colors.grey,
+                  ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _systemControl(BuildContext context, DashboardController controller) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Sistem Utama', style: AppText.h3(context)),
-              const SizedBox(height: 4),
-              Text(
-                controller.systemOn.value ? 'Sistem Aktif' : 'Sistem Non-Aktif',
-                style: TextStyle(
-                  color: controller.systemOn.value ? Colors.green : Colors.red,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
           Switch(
-            value: controller.systemOn.value,
+            value: isOn,
             activeColor: AppColors.teal,
-            onChanged: (val) => controller.toggleSystem(val),
+            onChanged: (val) => ctrl.toggleSystem(val),
           ),
         ],
       ),
     );
   }
 
-  Widget _processOverview(
-      BuildContext context, DashboardController controller) {
-    bool isHeaterOn = controller.bleachH1.value ||
-        controller.bleachH2.value ||
-        controller.bleachH3.value ||
-        controller.bleachH4.value;
+  // ─────────────────────────────────────────────────────────────
+  // SENSOR SUMMARY GRID (6 parameter utama)
+  // ─────────────────────────────────────────────────────────────
+  Widget _sensorSummaryGrid(BuildContext context, DashboardController ctrl) {
+    final bool heaterOn = ctrl.bleachH1.value ||
+        ctrl.bleachH2.value ||
+        ctrl.bleachH3.value ||
+        ctrl.bleachH4.value;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.analytics_rounded,
-                  color: AppColors.teal, size: 20),
-              const SizedBox(width: 8),
-              Text('Parameter Proses Berjalan', style: AppText.h3(context)),
-            ],
-          ),
-          const Divider(height: 20),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true, // 🌟 Mencegah error layout unbounded height
-            physics:
-                const NeverScrollableScrollPhysics(), // 🌟 Supaya scroll lancar di dalam ListView
-            childAspectRatio: 2.3,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            children: [
-              _overviewItem(
-                label: 'Suhu Arang',
-                value: '${controller.suhuArang.value.toStringAsFixed(1)} °C',
+          // Baris 1
+          Row(children: [
+            Expanded(
+              child: _paramTile(
+                label: 'Suhu Pemanasan\nArang',
+                value: '${ctrl.suhuArang.value.toStringAsFixed(1)}',
+                unit: '°C',
                 icon: Icons.thermostat_rounded,
-                iconColor: Colors.orange,
+                color: Colors.orange,
               ),
-              _overviewItem(
-                label: 'Volume Arang',
-                value: '${controller.arangVol.value.toStringAsFixed(1)} L',
-                icon: Icons.opacity_rounded,
-                iconColor: Colors.blue,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _paramTile(
+                label: 'Volume Minyak\nTangki Arang',
+                value: '${ctrl.arangVol.value.toStringAsFixed(1)}',
+                unit: 'L',
+                icon: Icons.water_rounded,
+                color: Colors.blue,
               ),
-              _overviewItem(
-                label: 'Suhu Bleaching',
-                value:
-                    '${controller.suhuBleaching.value.toStringAsFixed(1)} °C',
-                icon: Icons.wb_sunny_rounded,
-                iconColor: Colors.redAccent,
+            ),
+          ]),
+          const SizedBox(height: 10),
+          // Baris 2
+          Row(children: [
+            Expanded(
+              child: _paramTile(
+                label: 'Suhu Tangki\nBleaching',
+                value: '${ctrl.suhuBleaching.value.toStringAsFixed(1)}',
+                unit: '°C',
+                icon: Icons.device_thermostat_rounded,
+                color: Colors.redAccent,
               ),
-              _overviewItem(
-                label: 'Status Heater',
-                value: isHeaterOn ? 'Aktif' : 'Mati',
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _paramTile(
+                label: 'Elemen Heater',
+                value: heaterOn ? 'Aktif' : 'Mati',
+                unit: '',
                 icon: Icons.local_fire_department_rounded,
-                iconColor: isHeaterOn ? Colors.green : Colors.grey,
+                color: heaterOn ? Colors.green : Colors.grey,
+                isStatus: true,
+                statusOn: heaterOn,
               ),
-              _overviewItem(
-                label: 'Volume Validasi',
-                value: '${controller.validasiVol.value.toStringAsFixed(1)} L',
-                icon: Icons.water_drop_rounded,
-                iconColor: Colors.purple,
+            ),
+          ]),
+          const SizedBox(height: 10),
+          // Baris 3
+          Row(children: [
+            Expanded(
+              child: _paramTile(
+                label: 'Volume Minyak\nTangki Validasi',
+                value: '${ctrl.validasiVol.value.toStringAsFixed(1)}',
+                unit: 'L',
+                icon: Icons.science_rounded,
+                color: Colors.purple,
               ),
-              _overviewItem(
-                label: 'Kekeruhan Minyak',
-                value: '${controller.ntu.value.toStringAsFixed(1)} NTU',
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _paramTile(
+                label: 'Kekeruhan\n(Turbiditas)',
+                value: '${ctrl.ntu.value.toStringAsFixed(1)}',
+                unit: 'NTU',
                 icon: Icons.blur_on_rounded,
-                iconColor: Colors.teal,
+                color: Colors.teal,
               ),
-            ],
-          ),
+            ),
+          ]),
         ],
       ),
     );
   }
 
-  Widget _overviewItem({
+  Widget _paramTile({
     required String label,
     required String value,
+    required String unit,
     required IconData icon,
-    required Color iconColor,
+    required Color color,
+    bool isStatus = false,
+    bool statusOn = false,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
-        color: AppColors.background.withOpacity(0.4),
+        color: color.withOpacity(0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border.withOpacity(0.5)),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: iconColor, size: 20),
-          const SizedBox(width: 8),
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   label,
                   style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                      fontSize: 10, color: Colors.grey, height: 1.3),
+                  maxLines: 2,
                 ),
-                const SizedBox(height: 1),
-                Text(
-                  value,
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.bold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 3),
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: value,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: isStatus
+                              ? (statusOn ? Colors.green : Colors.grey)
+                              : Colors.black87,
+                        ),
+                      ),
+                      if (unit.isNotEmpty)
+                        TextSpan(
+                          text: ' $unit',
+                          style:
+                              TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -264,153 +371,206 @@ class DashboardPage extends GetView<DashboardController> {
     );
   }
 
-  Widget _processNavigation(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true, // 🌟 Mencegah error layout
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
+  // ─────────────────────────────────────────────────────────────
+  // NAVIGASI UNIT (3 kartu horizontal)
+  // ─────────────────────────────────────────────────────────────
+  Widget _unitNavigationRow(BuildContext context) {
+    return Row(
       children: [
-        _navCard(
-          context,
-          title: 'Arang',
-          icon: Icons.local_fire_department_rounded,
-          color: Colors.orange,
-          route: AppRoutes.arang,
+        Expanded(
+          child: _unitCard(
+            context,
+            title: 'Unit Arang',
+            subtitle: 'Suhu & Volume',
+            icon: Icons.local_fire_department_rounded,
+            color: Colors.orange,
+            route: AppRoutes.arang,
+          ),
         ),
-        _navCard(
-          context,
-          title: 'Bleaching',
-          icon: Icons.science_rounded,
-          color: Colors.blue,
-          route: AppRoutes.bleaching,
+        const SizedBox(width: 10),
+        Expanded(
+          child: _unitCard(
+            context,
+            title: 'Bleaching',
+            subtitle: 'Aktuator & Suhu',
+            icon: Icons.science_rounded,
+            color: Colors.blue,
+            route: AppRoutes.bleaching,
+          ),
         ),
-        _navCard(
-          context,
-          title: 'Validasi',
-          icon: Icons.verified_rounded,
-          color: Colors.purple,
-          route: AppRoutes.filtrasi,
+        const SizedBox(width: 10),
+        Expanded(
+          child: _unitCard(
+            context,
+            title: 'Validasi',
+            subtitle: 'Kualitas Akhir',
+            icon: Icons.verified_rounded,
+            color: Colors.purple,
+            route: AppRoutes.filtrasi,
+          ),
         ),
       ],
     );
   }
 
-  Widget _navCard(
+  Widget _unitCard(
     BuildContext context, {
     required String title,
+    required String subtitle,
     required IconData icon,
     required Color color,
     required String route,
   }) {
     return InkWell(
       onTap: () => Get.toNamed(route),
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.border),
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: color.withOpacity(0.1),
-              child: Icon(icon, color: color, size: 24),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
             ),
             const SizedBox(height: 8),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text(title,
+                textAlign: TextAlign.center,
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 2),
+            Text(subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
       ),
     );
   }
 
-  Widget _validationResultCard(
-      BuildContext context, DashboardController controller) {
-    double ntuVal = controller.ntu.value;
-    double volVal = controller.validasiVol.value;
-    bool isSystemOn = controller.systemOn.value;
+  // ─────────────────────────────────────────────────────────────
+  // VALIDATION RESULT CARD
+  // ─────────────────────────────────────────────────────────────
+  Widget _validationCard(BuildContext context, DashboardController ctrl) {
+    final ntuVal = ctrl.ntu.value;
+    final volVal = ctrl.validasiVol.value;
+    final isOn = ctrl.systemOn.value;
+    final kelayakan = ctrl.kelayakan.value;
 
-    String statusTitle;
-    String statusDesc;
-    Color statusColor;
-    IconData statusIcon;
+    String title;
+    String desc;
+    Color color;
+    IconData icon;
 
-    if (ntuVal < 50 && ntuVal > 0) {
-      statusTitle = 'FILTRASI BERHASIL';
-      statusDesc =
-          'Kualitas minyak jernih dan memenuhi standar purifikasi (Kekeruhan: ${ntuVal.toStringAsFixed(1)} NTU).';
-      statusColor = Colors.teal;
-      statusIcon = Icons.check_circle_rounded;
+    if (kelayakan > 85 || (ntuVal > 0 && ntuVal < 50)) {
+      title = 'FILTRASI BERHASIL';
+      desc =
+          'Kualitas minyak sangat baik. Kekeruhan ${ntuVal.toStringAsFixed(1)} NTU, '
+          'skor kelayakan ${kelayakan.toStringAsFixed(0)}/100.';
+      color = Colors.teal;
+      icon = Icons.check_circle_rounded;
+    } else if (kelayakan > 0 && kelayakan <= 41) {
+      title = 'TIDAK MEMENUHI STANDAR';
+      desc = 'Kualitas minyak belum memenuhi standar. '
+          'Skor kelayakan: ${kelayakan.toStringAsFixed(0)}/100. '
+          'NTU: ${ntuVal.toStringAsFixed(1)}.';
+      color = Colors.red;
+      icon = Icons.cancel_rounded;
     } else if (ntuVal >= 50) {
-      statusTitle = 'FILTRASI GAGAL';
-      statusDesc =
-          'Kekeruhan minyak terlalu pekat (${ntuVal.toStringAsFixed(1)} NTU) dan di luar ambang batas aman.';
-      statusColor = Colors.red;
-      statusIcon = Icons.cancel_rounded;
+      title = 'KEKERUHAN MELEBIHI BATAS';
+      desc =
+          'Turbiditas ${ntuVal.toStringAsFixed(1)} NTU melebihi ambang batas. '
+          'Proses purifikasi perlu diulang.';
+      color = Colors.red;
+      icon = Icons.cancel_rounded;
+    } else if (kelayakan > 41 && kelayakan <= 75) {
+      title = 'KURANG LAYAK';
+      desc = 'Minyak kurang layak. Skor ${kelayakan.toStringAsFixed(0)}/100. '
+          'Pertimbangkan purifikasi ulang.';
+      color = Colors.orange;
+      icon = Icons.warning_amber_rounded;
+    } else if (isOn) {
+      title = 'SISTEM MEMPROSES';
+      desc =
+          'Minyak sedang diolah. Menunggu cairan turun ke tangki validasi akhir.';
+      color = Colors.orange;
+      icon = Icons.sync_rounded;
+    } else if (volVal > 0) {
+      title = 'PROSES SELESAI';
+      desc =
+          'Cairan terdeteksi di tangki validasi. Sensor kualitas masih mengonfigurasi.';
+      color = Colors.blue;
+      icon = Icons.info_rounded;
     } else {
-      if (isSystemOn) {
-        statusTitle = 'SISTEM MEMPROSES';
-        statusDesc =
-            'Minyak sedang diolah di dalam tabung, menanti cairan turun ke penampung validasi akhir.';
-        statusColor = Colors.orange;
-        statusIcon = Icons.sync_rounded;
-      } else if (volVal > 0) {
-        statusTitle = 'PROSES SELESAI';
-        statusDesc =
-            'Cairan terdeteksi di unit filtrasi, namun sensor kualitas masih mengonfigurasi pembacaan.';
-        statusColor = Colors.blue;
-        statusIcon = Icons.info_rounded;
-      } else {
-        statusTitle = 'SISTEM STANDBY';
-        statusDesc =
-            'Sistem purifikasi dalam posisi siap. Jalankan sakelar utama untuk memulai verifikasi kualitas.';
-        statusColor = Colors.grey;
-        statusIcon = Icons.power_settings_new_rounded;
-      }
+      title = 'SISTEM STANDBY';
+      desc =
+          'Sistem siap. Aktifkan saklar utama untuk memulai siklus purifikasi.';
+      color = Colors.grey;
+      icon = Icons.power_settings_new_rounded;
     }
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: color.withOpacity(0.06),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: statusColor.withOpacity(0.4), width: 1.5),
+        border: Border.all(color: color.withOpacity(0.4), width: 1.5),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(statusIcon, color: statusColor, size: 36),
+          Icon(icon, color: color, size: 34),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  statusTitle,
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: statusColor,
-                      letterSpacing: 0.5),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  statusDesc,
-                  style: const TextStyle(
-                      fontSize: 13, color: Colors.grey, height: 1.3),
-                ),
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                        letterSpacing: 0.3)),
+                const SizedBox(height: 5),
+                Text(desc,
+                    style: const TextStyle(
+                        fontSize: 12, color: Colors.grey, height: 1.4)),
+                // Progress bar kelayakan (jika ada data)
+                if (kelayakan > 0) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Text('Kelayakan: ',
+                          style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: kelayakan / 100,
+                            minHeight: 6,
+                            backgroundColor: Colors.grey[200],
+                            valueColor: AlwaysStoppedAnimation<Color>(color),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text('${kelayakan.toStringAsFixed(0)}%',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: color)),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -419,10 +579,17 @@ class DashboardPage extends GetView<DashboardController> {
     );
   }
 
-  Widget _sectionTitle(BuildContext context, String title) {
-    return Text(
-      title,
-      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+  // ─────────────────────────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────────────────────────
+  Widget _sectionHeader(BuildContext context, String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.teal),
+        const SizedBox(width: 8),
+        Text(title,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 }
