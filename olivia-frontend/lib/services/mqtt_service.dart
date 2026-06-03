@@ -133,10 +133,20 @@ class MqttService extends GetxService {
   }
 
   void publish(String topic, Map<String, dynamic> payload) {
+    print("MQTT STATE = ${_client.connectionStatus?.state}");
+
     if (_client.connectionStatus?.state == MqttConnectionState.connected) {
+      print("PUBLISH MQTT -> $topic");
+
       final builder = MqttClientPayloadBuilder();
       builder.addString(jsonEncode(payload));
-      _client.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
+
+      _client.publishMessage(
+        topic,
+        MqttQos.atLeastOnce,
+        builder.payload!,
+      );
+
       print('[MQTT TX] $topic');
     } else {
       print('[MQTT] Cannot publish — not connected');

@@ -177,6 +177,9 @@ class DashboardController extends GetxController {
 
     final controlPayload = {"system_on": nextState};
 
+    print("BUTTON DITEKAN");
+    print("MQTT CONNECTED: ${_mqttService.isConnected.value}");
+
     // 1. Kirim via MQTT (Prioritas utama eksekusi instan)
     _mqttService.publish('olivia/control', controlPayload);
 
