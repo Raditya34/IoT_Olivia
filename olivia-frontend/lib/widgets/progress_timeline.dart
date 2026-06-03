@@ -16,9 +16,9 @@ class ProgressTimeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = const [
-      ('Minyak', Icons.water_drop_rounded),
       ('Arang', Icons.local_fire_department_rounded),
       ('Bleaching', Icons.science_rounded),
+      ('Validasi', Icons.biotech_rounded),
       ('Selesai', Icons.verified_rounded),
     ];
 

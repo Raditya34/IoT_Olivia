@@ -5,7 +5,6 @@ import '../../routes/app_routes.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_text.dart';
 import '../../widgets/app_scaffold.dart';
-import '../../widgets/sensor_card.dart';
 import '../../state/dashboard_controller.dart';
 
 class ValidasiPage extends StatelessWidget {

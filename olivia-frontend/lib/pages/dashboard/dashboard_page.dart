@@ -18,7 +18,7 @@ class DashboardPage extends GetView<DashboardController> {
       title: 'Dashboard',
       currentRoute: AppRoutes.dashboard,
       child: RefreshIndicator(
-        onRefresh: () => ctrl.fetchDashboardData(),
+        onRefresh: () => ctrl.fetchInitialData(),
         color: AppColors.teal,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -207,10 +207,10 @@ class DashboardPage extends GetView<DashboardController> {
               ],
             ),
           ),
-          Switch(
+          Switch.adaptive(
             value: isOn,
             activeColor: AppColors.teal,
-            onChanged: (val) => ctrl.toggleSystem(val),
+            onChanged: (val) => ctrl.toggleSystem(),
           ),
         ],
       ),
