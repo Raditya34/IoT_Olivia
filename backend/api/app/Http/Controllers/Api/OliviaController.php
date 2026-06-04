@@ -67,6 +67,80 @@ class OliviaController extends Controller
         }
     }
 
+     public function storeMaster(Request $request)
+    {
+        try {
+            // Ambil payload mentah jika dikirim dalam string atau ambil langsung dari request objek
+            $data = $request->all();
+
+            if (empty($data)) {
+                return response()->json(['status' => 'error', 'message' => 'Payload kosong'], 400);
+            }
+
+            // 1. Ambil data utama sistem (opsional jika ingin mencocokkan master control database)
+            $systemOn = filter_var($data['system_on'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $master = MasterControl::first();
+            if ($master) {
+                $master->update(['system_on' => $systemOn]);
+            }
+
+            // 2. Simpan ke model Esp1Arang (Objek 'arang')
+            $arangData = $data['arang'] ?? [];
+            $resEsp1 = Esp1Arang::create([
+                'suhu_arang'   => $arangData['suhu_arang'] ?? 0.0,
+                'volume_arang' => $arangData['volume_arang'] ?? 0.0,
+            ]);
+
+            // 3. Simpan ke model Esp2Bleaching (Objek 'bleaching')
+            $bleachingData = $data['bleaching'] ?? [];
+            $resEsp2 = Esp2Bleaching::create([
+                'suhu_bleaching' => $bleachingData['suhu_bleaching'] ?? 0.0,
+                'valve'          => filter_var($bleachingData['valve'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'p1'             => filter_var($bleachingData['p1'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'p2'             => filter_var($bleachingData['p2'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'p3'             => filter_var($bleachingData['p3'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'h1'             => filter_var($bleachingData['h1'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'h2'             => filter_var($bleachingData['h2'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'h3'             => filter_var($bleachingData['h3'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'h4'             => filter_var($bleachingData['h4'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'speed'          => (int)($bleachingData['speed'] ?? 0),
+            ]);
+
+            // 4. Simpan ke model Esp3Validasi (Objek 'validasi')
+            $validasiData = $data['validasi'] ?? [];
+            $resEsp3 = Esp3Validasi::create([
+                'volume_validasi' => $validasiData['volume_validasi'] ?? 0.0,
+                'turbidity'       => $validasiData['turbidity'] ?? 0.0,
+                'viscosity'       => $validasiData['viscosity'] ?? 0.0,
+                'r'               => (int)($validasiData['r'] ?? 0),
+                'g'               => (int)($validasiData['g'] ?? 0),
+                'b'               => (int)($validasiData['b'] ?? 0),
+                'kelayakan'       => $validasiData['kelayakan'] ?? 0.0,
+                'status_layak'    => $validasiData['status_layak'] ?? 'TIDAK LAYAK',
+            ]);
+
+            Log::info("storeMaster Success: Data dari Master berhasil dipecah dan disimpan.");
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Data gabungan Master berhasil dipecah dan disimpan ke database lokal',
+                'logged_data' => [
+                    'esp1_id' => $resEsp1->id,
+                    'esp2_id' => $resEsp2->id,
+                    'esp3_id' => $resEsp3->id
+                ]
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error("storeMaster Fatal Error: " . $e->getMessage());
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Gagal memproses data gabungan',
+                'error'   => $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * AMBIL DATA REKAP HISTORY
      * Endpoint: GET /api/history

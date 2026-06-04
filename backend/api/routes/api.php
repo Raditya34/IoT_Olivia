@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // --- 3. IoT Endpoints (Untuk POST telemetry dari hardware ESP32 / Postman) ---
 Route::prefix('iot')->group(function () {
+    Route::post('/master/store', [OliviaController::class, 'storeMaster']);
     Route::post('/esp1/store', [OliviaController::class, 'storeEsp1']);
     Route::post('/esp2/store', [OliviaController::class, 'storeEsp2']);
     Route::post('/esp3/store', [OliviaController::class, 'storeEsp3']);
