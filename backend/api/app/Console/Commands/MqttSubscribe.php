@@ -217,53 +217,58 @@ class MqttSubscribe extends Command
     /**
      * Fallback: Susun payload nested dari buffer in-memory untuk jalur modular
      */
-    private function republishNested(string $publishTopik): void
-    {
-        $d1 = $this->buffer['OLIVIA-01'] ?? [];
-        $d2 = $this->buffer['OLIVIA-02'] ?? [];
-        $d3 = $this->buffer['OLIVIA-03'] ?? [];
+private function republishNested(string $publishTopik): void
+{
+    $d1 = $this->buffer['OLIVIA-01'] ?? null;
+    $d2 = $this->buffer['OLIVIA-02'] ?? null;
+    $d3 = $this->buffer['OLIVIA-03'] ?? null;
 
-        $master     = MasterControl::first();
-        $isSystemOn = $master ? (bool)$master->system_on : false;
+    $master     = MasterControl::first();
+    $isSystemOn = $master ? (bool)$master->system_on : false;
 
-        $payload = json_encode([
-            'system_on' => $isSystemOn,
+    // 🚀 AMBIL DATA TERAKHIR DARI DB JIKA BUFFER HARDWARE KOSONG (SAAT OFF)
+    $lastArang     = Esp1Arang::latest('id')->first();
+    $lastBleaching = Esp2Bleaching::latest('id')->first();
+    $lastValidasi  = Esp3Validasi::latest('id')->first();
 
-            'arang' => [
-                'suhu_arang'   => $d1['suhu_arang']   ?? 0.0,
-                'volume_arang' => $d1['volume_arang']  ?? 0.0,
-            ],
+    $payload = json_encode([
+        'system_on' => $isSystemOn,
 
-            'bleaching' => [
-                'suhu_bleaching' => $d2['suhu_bleaching'] ?? 0.0,
-                'valve' => (bool)($d2['valve'] ?? false),
-                'p1'    => (bool)($d2['p1']    ?? false),
-                'p2'    => (bool)($d2['p2']    ?? false),
-                'p3'    => (bool)($d2['p3']    ?? false),
-                'h1'    => (bool)($d2['h1']    ?? false),
-                'h2'    => (bool)($d2['h2']    ?? false),
-                'h3'    => (bool)($d2['h3']    ?? false),
-                'h4'    => (bool)($d2['h4']    ?? false),
-                'speed' => $d2['speed'] ?? 0,
-            ],
+        'arang' => [
+            'suhu_arang'   => $d1['suhu_arang']   ?? ($lastArang ? (float)$lastArang->suhu_arang : 0.0),
+            'volume_arang' => $d1['volume_arang']  ?? ($lastArang ? (float)$lastArang->volume_arang : 0.0),
+        ],
 
-            'validasi' => [
-                'volume_validasi' => $d3['volume_validasi'] ?? 0.0,
-                'turbidity'       => $d3['turbidity']       ?? 0.0,
-                'viscosity'       => $d3['viscosity']       ?? 0.0,
-                'r'               => $d3['r']               ?? 0,
-                'g'               => $d3['g']               ?? 0,
-                'b'               => $d3['b']               ?? 0,
-                'kelayakan'       => $d3['kelayakan']        ?? 0.0,
-                'status_layak'    => $d3['status_layak']     ?? 'TIDAK LAYAK',
-            ],
-        ]);
+        'bleaching' => [
+            'suhu_bleaching' => $d2['suhu_bleaching'] ?? ($lastBleaching ? (float)$lastBleaching->suhu_bleaching : 0.0),
+            'valve'          => (bool)($d2['valve']     ?? ($lastBleaching ? $lastBleaching->valve : false)),
+            'p1'             => (bool)($d2['p1']        ?? ($lastBleaching ? $lastBleaching->p1 : false)),
+            'p2'             => (bool)($d2['p2']        ?? ($lastBleaching ? $lastBleaching->p2 : false)),
+            'p3'             => (bool)($d2['p3']        ?? ($lastBleaching ? $lastBleaching->p3 : false)),
+            'h1'             => (bool)($d2['h1']        ?? ($lastBleaching ? $lastBleaching->h1 : false)),
+            'h2'             => (bool)($d2['h2']        ?? ($lastBleaching ? $lastBleaching->h2 : false)),
+            'h3'             => (bool)($d2['h3']        ?? ($lastBleaching ? $lastBleaching->h3 : false)),
+            'h4'             => (bool)($d2['h4']        ?? ($lastBleaching ? $lastBleaching->h4 : false)),
+            'speed'          => $d2['speed']            ?? ($lastBleaching ? (int)$lastBleaching->speed : 0),
+        ],
 
-        try {
-            $this->mqtt->publish($publishTopik, $payload, 0);
-            $this->line("  >> Re-published nested ke $publishTopik (Jalur Modular)");
-        } catch (\Exception $e) {
-            $this->error("  >> Gagal re-publish: " . $e->getMessage());
-        }
+        'validasi' => [
+            'volume_validasi' => $d3['volume_validasi'] ?? ($lastValidasi ? (float)$lastValidasi->volume_validasi : 0.0),
+            'turbidity'       => $d3['turbidity']       ?? ($lastValidasi ? (float)$lastValidasi->turbidity : 0.0),
+            'viscosity'       => $d3['viscosity']       ?? ($lastValidasi ? (float)$lastValidasi->viscosity : 0.0),
+            'r'               => $d3['r']               ?? ($lastValidasi ? (int)$lastValidasi->r : 0),
+            'g'               => $d3['g']               ?? ($lastValidasi ? (int)$lastValidasi->g : 0),
+            'b'               => $d3['b']               ?? ($lastValidasi ? (int)$lastValidasi->b : 0),
+            'kelayakan'       => $d3['kelayakan']       ?? ($lastValidasi ? (float)$lastValidasi->kelayakan : 0.0),
+            'status_layak'    => $d3['status_layak']    ?? ($lastValidasi ? $lastValidasi->status_layak : 'TIDAK LAYAK'),
+        ],
+    ]);
+
+    try {
+        $this->mqtt->publish($publishTopik, $payload, 0);
+        $this->line("  >> Re-published nested ke $publishTopik (Smart Fallback DB)");
+    } catch (\Exception $e) {
+        $this->error("  >> Gagal re-publish: " . $e->getMessage());
     }
+}
 }
