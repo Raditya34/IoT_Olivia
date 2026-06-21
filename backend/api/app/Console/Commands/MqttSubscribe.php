@@ -15,12 +15,11 @@ class MqttSubscribe extends Command
     protected $signature   = 'mqtt:subscribe';
     protected $description = 'Listen data dari HiveMQ Cloud dan re-publish ke Flutter';
 
-    // Buffer in-memory untuk fallback jalur modular
     private array $buffer = [
         'OLIVIA-01'     => null,
         'OLIVIA-02'     => null,
         'OLIVIA-03'     => null,
-        'OLIVIA-MASTER' => null, // ✅ BARU: Tambah entry untuk Master
+        'OLIVIA-MASTER' => null,
     ];
 
     private ?MqttClient $mqtt = null;
@@ -33,9 +32,7 @@ class MqttSubscribe extends Command
         $username = env('MQTT_USERNAME', 'Olivia_IoT');
         $password = env('MQTT_PASSWORD', 'Olivia12345');
 
-        // Wildcard subscribe menangkap semua device termasuk OLIVIA-MASTER
         $subscribeTopik = env('MQTT_SUBSCRIBE_TOPIC', 'olivia/+/telemetry');
-        // Re-publish ke topik yang didengar Flutter
         $publishTopik   = env('MQTT_PUBLISH_TOPIC', 'olivia/telemetry');
 
         $this->info("Menghubungkan ke $server:$port ...");
@@ -55,11 +52,10 @@ class MqttSubscribe extends Command
             $this->info("Terhubung! Subscribe: $subscribeTopik → Re-publish: $publishTopik");
 
             $this->mqtt->subscribe($subscribeTopik, function (string $topic, string $message) use ($publishTopik) {
-                // Ekstrak device code dari topik: olivia/OLIVIA-MASTER/telemetry → OLIVIA-MASTER
                 $parts      = explode('/', $topic);
                 $deviceCode = $parts[1] ?? 'UNKNOWN';
 
-                $this->line("[" . now() . "] [$deviceCode] $message");
+                $this->line("[" . now() . "] [$deviceCode] Data Diterima.");
                 $data = json_decode($message, true);
 
                 if (!is_array($data)) {
@@ -68,13 +64,51 @@ class MqttSubscribe extends Command
                 }
 
                 // =================================================================
-                // OPSI A: PAYLOAD GABUNGAN / NESTED (dari ESP32 Master V2)
-                // Ditandai dengan adanya key 'arang', 'bleaching', atau 'validasi'
+                // 🌟 PERBAIKAN: TRANSLATOR FLAT KE NESTED UNTUK OLIVIA-MASTER
                 // =================================================================
+                if ($deviceCode === 'OLIVIA-MASTER' && !isset($data['arang'])) {
+                    $this->info("🔄 Mengonversi payload FLAT dari OLIVIA-MASTER menjadi NESTED...");
+
+                    $data = [
+                        'system_on'    => $data['system_on'] ?? false,
+                        'current_step' => $data['current_step'] ?? 'STANDBY',
+                        'arang' => [
+                            'suhu_arang'   => $data['suhu_arang'] ?? 0.0,
+                            'volume_arang' => $data['volume_arang'] ?? 0.0,
+                        ],
+                        'bleaching' => [
+                            'suhu_bleaching' => $data['suhu_bleaching'] ?? 0.0,
+                            'valve' => $data['valve'] ?? false,
+                            'p1'    => $data['p1'] ?? false,
+                            'p2'    => $data['p2'] ?? false,
+                            'p3'    => $data['p3'] ?? false,
+                            'h1'    => $data['h1'] ?? false,
+                            'h2'    => $data['h2'] ?? false,
+                            'h3'    => $data['h3'] ?? false,
+                            'h4'    => $data['h4'] ?? false,
+                            'speed' => $data['speed'] ?? 0,
+                        ],
+                        'validasi' => [
+                            'volume_validasi' => $data['volume_validasi'] ?? 0.0,
+                            'turbidity'       => $data['turbidity'] ?? 0.0,
+                            'viscosity'       => $data['viscosity'] ?? 0.0,
+                            'r'               => $data['r'] ?? 0,
+                            'g'               => $data['g'] ?? 0,
+                            'b'               => $data['b'] ?? 0,
+                            'kelayakan'       => $data['kelayakan'] ?? 0.0,
+                            'status_layak'    => $data['status_layak'] ?? 'TIDAK LAYAK',
+                        ]
+                    ];
+
+                    // Timpa pesan asli dengan format JSON yang sudah dirapikan untuk dikirim ke Flutter
+                    $message = json_encode($data);
+                }
+                // =================================================================
+
+                // OPSI A: PAYLOAD GABUNGAN / NESTED
                 if (isset($data['arang']) || isset($data['bleaching']) || isset($data['validasi'])) {
                     $this->info("⚡ Payload GABUNGAN dari [$deviceCode]. Memproses ke DB...");
 
-                    // 1. Simpan data Arang ke DB
                     if (isset($data['arang'])) {
                         try {
                             Esp1Arang::create([
@@ -82,12 +116,9 @@ class MqttSubscribe extends Command
                                 'volume_arang' => $data['arang']['volume_arang'] ?? 0.0,
                             ]);
                             $this->info("  → DB Arang OK");
-                        } catch (\Exception $e) {
-                            $this->error("  → Gagal DB Arang: " . $e->getMessage());
-                        }
+                        } catch (\Exception $e) { $this->error("  → Gagal DB Arang: " . $e->getMessage()); }
                     }
 
-                    // 2. Simpan data Bleaching ke DB
                     if (isset($data['bleaching'])) {
                         try {
                             Esp2Bleaching::create([
@@ -103,12 +134,9 @@ class MqttSubscribe extends Command
                                 'speed'          => $data['bleaching']['speed'] ?? 0,
                             ]);
                             $this->info("  → DB Bleaching OK");
-                        } catch (\Exception $e) {
-                            $this->error("  → Gagal DB Bleaching: " . $e->getMessage());
-                        }
+                        } catch (\Exception $e) { $this->error("  → Gagal DB Bleaching: " . $e->getMessage()); }
                     }
 
-                    // 3. ✅ FIX: Simpan data Validasi ke DB TERMASUK kelayakan & status_layak
                     if (isset($data['validasi'])) {
                         try {
                             Esp3Validasi::create([
@@ -118,52 +146,37 @@ class MqttSubscribe extends Command
                                 'r'               => $data['validasi']['r']               ?? 0,
                                 'g'               => $data['validasi']['g']               ?? 0,
                                 'b'               => $data['validasi']['b']               ?? 0,
-                                // ✅ Kolom ini ada di model tapi sebelumnya tidak di-insert
                                 'kelayakan'       => $data['validasi']['kelayakan']        ?? 0.0,
                                 'status_layak'    => $data['validasi']['status_layak']     ?? 'TIDAK LAYAK',
                             ]);
-                            $this->info("  → DB Validasi OK (kelayakan=" . ($data['validasi']['kelayakan'] ?? 0) . ")");
-                        } catch (\Exception $e) {
-                            $this->error("  → Gagal DB Validasi: " . $e->getMessage());
-                        }
+                            $this->info("  → DB Validasi OK");
+                        } catch (\Exception $e) { $this->error("  → Gagal DB Validasi: " . $e->getMessage()); }
                     }
 
-                    // 4. Sinkronisasi system_on ke tabel master_controls
                     if (isset($data['system_on'])) {
                         try {
-                            MasterControl::query()->updateOrCreate(
-                                [],
-                                ['system_on' => (bool)$data['system_on']]
-                            );
-                            $this->info("  → MasterControl sync: system_on=" . ($data['system_on'] ? 'true' : 'false'));
-                        } catch (\Exception $e) {
-                            $this->error("  → Gagal sync MasterControl: " . $e->getMessage());
-                        }
+                            MasterControl::query()->updateOrCreate([], ['system_on' => (bool)$data['system_on']]);
+                        } catch (\Exception $e) { $this->error("  → Gagal sync MasterControl: " . $e->getMessage()); }
                     }
 
-                    // 5. Re-publish payload gabungan utuh ke Flutter via topic olivia/telemetry
-                    //    Flutter subscribe ke 'olivia/telemetry' (tanpa device code)
+                    // Re-publish ke Flutter via topic olivia/telemetry
                     try {
                         $this->mqtt->publish($publishTopik, $message, 0);
-                        $this->line("  >> Re-published ke Flutter [$publishTopik]");
+                        $this->line("  >> Re-published ke Flutter [$publishTopik] Sukses!");
                     } catch (\Exception $e) {
                         $this->error("  >> Gagal re-publish: " . $e->getMessage());
                     }
 
                 } else {
-                    // =================================================================
-                    // OPSI B: FALLBACK JALUR MODULAR (device kirim data flat terpisah)
-                    // =================================================================
+                    // OPSI B: FALLBACK JALUR MODULAR
                     $this->info("⚙ Payload MODULAR dari [$deviceCode]. Buffering...");
                     $this->simpanKeDatabase($deviceCode, $data);
                     $this->buffer[$deviceCode] = $data;
 
-                    // Re-publish hanya jika minimal satu device sudah punya data
                     if ($this->buffer['OLIVIA-01'] !== null || $this->buffer['OLIVIA-02'] !== null) {
                         $this->republishNested($publishTopik);
                     }
                 }
-
             }, 0);
 
             $this->mqtt->loop(true);
