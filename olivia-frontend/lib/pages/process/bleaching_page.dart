@@ -314,7 +314,7 @@ class BleachingPage extends StatelessWidget {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // MOTOR PENGADUK
+  // MOTOR PENGADUK (UPDATED: Menggunakan Status ON/OFF)
   // ─────────────────────────────────────────────────────────────
   Widget _motorCard(BuildContext context, DashboardController ctrl) {
     final speed = ctrl.bleachSpeed.value;
@@ -364,20 +364,28 @@ class BleachingPage extends StatelessWidget {
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '$speed',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: isRunning ? Colors.purple : Colors.grey,
-                ),
+          // Mengganti tampilan RPM dengan Status Badge ON/OFF yang serasi
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: isRunning
+                  ? Colors.purple.withOpacity(0.15)
+                  : Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isRunning
+                    ? Colors.purple.withOpacity(0.4)
+                    : Colors.grey.withOpacity(0.2),
               ),
-              const Text('RPM',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
-            ],
+            ),
+            child: Text(
+              isRunning ? 'ON' : 'OFF',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isRunning ? Colors.purple : Colors.grey,
+              ),
+            ),
           ),
         ],
       ),
