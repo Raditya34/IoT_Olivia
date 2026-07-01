@@ -3,7 +3,11 @@ import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 
 class ProgressTimeline extends StatelessWidget {
-  /// 0..4 (0=idle/off, 1=minyak, 2=arang, 3=bleaching, 4=selesai)
+  /// 0 = idle/standby
+  /// 1 = Arang      (START → HEATER1 → VALVE → PUMP1)
+  /// 2 = Bleaching  (HEATER2 → MOTOR → FILTER_BLEACHING → PUMP2)
+  /// 3 = Validasi   (DELAY_PUMP3 → PUMP3_RUN)
+  /// 4 = Selesai    (setelah PUMP3 selesai)
   final int step;
   final bool active;
 
@@ -15,12 +19,21 @@ class ProgressTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = const [
+    const items = [
       ('Arang', Icons.local_fire_department_rounded),
       ('Bleaching', Icons.science_rounded),
       ('Validasi', Icons.biotech_rounded),
       ('Selesai', Icons.verified_rounded),
     ];
+
+    // Badge kanan atas
+    final String badgeLabel = !active || step == 0
+        ? 'IDLE'
+        : step >= 4
+            ? 'SELESAI'
+            : 'RUNNING';
+
+    final bool isRunning = active && step > 0;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -47,18 +60,18 @@ class ProgressTimeline extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: (active ? AppColors.teal : AppColors.textMuted)
+                  color: (isRunning ? AppColors.teal : AppColors.textMuted)
                       .withOpacity(0.12),
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: (active ? AppColors.teal : AppColors.textMuted)
+                    color: (isRunning ? AppColors.teal : AppColors.textMuted)
                         .withOpacity(0.25),
                   ),
                 ),
                 child: Text(
-                  active ? 'RUNNING' : 'IDLE',
+                  badgeLabel,
                   style: AppText.chip(context).copyWith(
-                    color: active ? AppColors.tealDark : AppColors.textMuted,
+                    color: isRunning ? AppColors.tealDark : AppColors.textMuted,
                   ),
                 ),
               ),
@@ -68,16 +81,20 @@ class ProgressTimeline extends StatelessWidget {
           LayoutBuilder(
             builder: (context, c) {
               final w = c.maxWidth;
-              final nodeW = (w - 24) / 4; // 3 gaps * 8 = 24
+              final nodeW = (w - 24) / 4; // 3 gap × 8px = 24
               return Row(
                 children: List.generate(items.length, (i) {
-                  final index = i + 1;
-                  final done = step >= index && active;
-                  final current = step == index && active;
+                  final firmStep = i + 1; // 1..4
+                  // done  = fase ini sudah LEWAT
+                  final bool done = active && step > firmStep;
+                  // current = firmware SEDANG di fase ini
+                  final bool current = active && step == firmStep;
 
-                  final color = done
+                  final Color color = done
                       ? AppColors.success
-                      : (current ? AppColors.warning : AppColors.textMuted);
+                      : current
+                          ? AppColors.warning
+                          : AppColors.textMuted;
 
                   return Row(
                     children: [
@@ -122,7 +139,8 @@ class ProgressTimeline extends StatelessWidget {
                           width: 8,
                           height: 2,
                           margin: const EdgeInsets.only(bottom: 22),
-                          color: (step > index && active)
+                          // connector ikut teal saat step sudah MELEWATI fase ini
+                          color: (active && step > firmStep)
                               ? AppColors.success.withOpacity(0.7)
                               : AppColors.border,
                         ),

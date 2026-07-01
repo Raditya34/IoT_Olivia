@@ -64,6 +64,24 @@ class DashboardController extends GetxController {
   }
 
   // ===========================================================================
+  // CONVERTER: current_step String → int (fallback firmware lama)
+  // ===========================================================================
+  static int _currentStepToInt(dynamic value) {
+    final s = value?.toString().trim().toUpperCase() ?? '';
+    if (s == 'STANDBY' || s.isEmpty) return 0;
+    if (s == '0' || s == '1') return 1; // START / HEATER1 → Arang
+    if (s == 'HEATER ARANG' || s == 'PUMP 1') return 1;
+    if (s == 'HEATER BLEACHING' ||
+        s == 'MOTOR BLEACHING' ||
+        s == 'BLEACHING' ||
+        s == 'PUMP 2') return 2;
+    if (s == 'VALIDASI QUALITY' || s == 'MENUJU VALIDASI' || s == 'VALIDASI')
+      return 3;
+    if (s == 'SELESAI') return 4;
+    return 0;
+  }
+
+  // ===========================================================================
   // STATE VARIABEL (REAKTIF GetX)
   // ===========================================================================
   var systemOn = false.obs;
@@ -189,6 +207,8 @@ class DashboardController extends GetxController {
 
       if (json.containsKey('process_step')) {
         progressStep.value = _safeInt(json['process_step']);
+      } else if (json.containsKey('current_step')) {
+        progressStep.value = _currentStepToInt(json['current_step']);
       }
 
       // Parse Nested Data Unit 1 (Arang)

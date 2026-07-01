@@ -358,7 +358,7 @@ class ValidasiPage extends StatelessWidget {
                   fontSize: 11, color: Colors.grey, height: 1.3)),
           if (isWarning) ...[
             const SizedBox(height: 5),
-            const Text('⚠ Melebihi batas 50 NTU',
+            const Text('⚠ Melebihi batas jernih NTU',
                 style: TextStyle(
                     fontSize: 10,
                     color: Colors.red,

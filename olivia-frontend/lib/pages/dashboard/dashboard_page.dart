@@ -71,7 +71,7 @@ class DashboardPage extends GetView<DashboardController> {
   Widget _heroQuality(BuildContext context, DashboardController ctrl) {
     final ntuVal = ctrl.ntu.value;
     final bool hasData = ntuVal > 0;
-    final bool isGood = hasData && ntuVal < 50;
+    final bool isGood = hasData && ntuVal < 136;
 
     Color bgColor;
     Color accentColor;
@@ -471,7 +471,7 @@ class DashboardPage extends GetView<DashboardController> {
     Color color;
     IconData icon;
 
-    if (kelayakan > 85 || (ntuVal > 0 && ntuVal < 50)) {
+    if (kelayakan > 85 || (ntuVal > 0 && ntuVal < 136)) {
       title = 'FILTRASI BERHASIL';
       desc =
           'Kualitas minyak sangat baik. Kekeruhan ${ntuVal.toStringAsFixed(1)} NTU, '
@@ -485,7 +485,7 @@ class DashboardPage extends GetView<DashboardController> {
           'NTU: ${ntuVal.toStringAsFixed(1)}.';
       color = Colors.red;
       icon = Icons.cancel_rounded;
-    } else if (ntuVal >= 50) {
+    } else if (ntuVal >= 136) {
       title = 'KEKERUHAN MELEBIHI BATAS';
       desc =
           'Turbiditas ${ntuVal.toStringAsFixed(1)} NTU melebihi ambang batas. '
