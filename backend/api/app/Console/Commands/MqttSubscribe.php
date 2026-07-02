@@ -109,49 +109,40 @@ class MqttSubscribe extends Command
                 if (isset($data['arang']) || isset($data['bleaching']) || isset($data['validasi'])) {
                     $this->info("⚡ Payload GABUNGAN dari [$deviceCode]. Memproses ke DB...");
 
-                    if (isset($data['arang'])) {
-                        try {
-                            Esp1Arang::create([
-                                'suhu_arang'   => $data['arang']['suhu_arang']   ?? 0.0,
-                                'volume_arang' => $data['arang']['volume_arang'] ?? 0.0,
-                            ]);
-                            $this->info("  → DB Arang OK");
-                        } catch (\Exception $e) { $this->error("  → Gagal DB Arang: " . $e->getMessage()); }
+                if (isset($data['arang'])) {
+                    $this->retryCreate('Arang', fn() => Esp1Arang::create([
+                        'suhu_arang'   => $data['arang']['suhu_arang']   ?? 0.0,
+                        'volume_arang' => $data['arang']['volume_arang'] ?? 0.0,
+                    ]));
                     }
 
-                    if (isset($data['bleaching'])) {
-                        try {
-                            Esp2Bleaching::create([
-                                'suhu_bleaching' => $data['bleaching']['suhu_bleaching'] ?? 0.0,
-                                'valve'          => (bool)($data['bleaching']['valve'] ?? false),
-                                'p1'             => (bool)($data['bleaching']['p1']    ?? false),
-                                'p2'             => (bool)($data['bleaching']['p2']    ?? false),
-                                'p3'             => (bool)($data['bleaching']['p3']    ?? false),
-                                'h1'             => (bool)($data['bleaching']['h1']    ?? false),
-                                'h2'             => (bool)($data['bleaching']['h2']    ?? false),
-                                'h3'             => (bool)($data['bleaching']['h3']    ?? false),
-                                'h4'             => (bool)($data['bleaching']['h4']    ?? false),
-                                'speed'          => $data['bleaching']['speed'] ?? 0,
-                            ]);
-                            $this->info("  → DB Bleaching OK");
-                        } catch (\Exception $e) { $this->error("  → Gagal DB Bleaching: " . $e->getMessage()); }
-                    }
+                if (isset($data['bleaching'])) {
+                    $this->retryCreate('Bleaching', fn() => Esp2Bleaching::create([
+                        'suhu_bleaching' => $data['bleaching']['suhu_bleaching'] ?? 0.0,
+                        'valve'          => (bool)($data['bleaching']['valve'] ?? false),
+                        'p1'             => (bool)($data['bleaching']['p1']    ?? false),
+                        'p2'             => (bool)($data['bleaching']['p2']    ?? false),
+                        'p3'             => (bool)($data['bleaching']['p3']    ?? false),
+                        'h1'             => (bool)($data['bleaching']['h1']    ?? false),
+                        'h2'             => (bool)($data['bleaching']['h2']    ?? false),
+                        'h3'             => (bool)($data['bleaching']['h3']    ?? false),
+                        'h4'             => (bool)($data['bleaching']['h4']    ?? false),
+                        'speed'          => $data['bleaching']['speed'] ?? 0,
+                    ]));
+                }
 
-                    if (isset($data['validasi'])) {
-                        try {
-                            Esp3Validasi::create([
-                                'volume_validasi' => $data['validasi']['volume_validasi'] ?? 0.0,
-                                'turbidity'       => $data['validasi']['turbidity']       ?? 0.0,
-                                'viscosity'       => $data['validasi']['viscosity']       ?? 0.0,
-                                'r'               => $data['validasi']['r']               ?? 0,
-                                'g'               => $data['validasi']['g']               ?? 0,
-                                'b'               => $data['validasi']['b']               ?? 0,
-                                'kelayakan'       => $data['validasi']['kelayakan']        ?? 0.0,
-                                'status_layak'    => $data['validasi']['status_layak']     ?? 'TIDAK LAYAK',
-                            ]);
-                            $this->info("  → DB Validasi OK");
-                        } catch (\Exception $e) { $this->error("  → Gagal DB Validasi: " . $e->getMessage()); }
-                    }
+                if (isset($data['validasi'])) {
+                    $this->retryCreate('Validasi', fn() => Esp3Validasi::create([
+                        'volume_validasi' => $data['validasi']['volume_validasi'] ?? 0.0,
+                        'turbidity'       => $data['validasi']['turbidity']       ?? 0.0,
+                        'viscosity'       => $data['validasi']['viscosity']       ?? 0.0,
+                        'r'               => $data['validasi']['r']               ?? 0,
+                        'g'               => $data['validasi']['g']               ?? 0,
+                        'b'               => $data['validasi']['b']               ?? 0,
+                        'kelayakan'       => $data['validasi']['kelayakan']        ?? 0.0,
+                        'status_layak'    => $data['validasi']['status_layak']     ?? 'TIDAK LAYAK',
+                    ]));
+                }
 
                     if (isset($data['system_on'])) {
                         try {
@@ -226,7 +217,40 @@ class MqttSubscribe extends Command
             $this->error("  → Gagal DB $deviceCode: " . $e->getMessage());
         }
     }
+private function retryCreate(string $label, \Closure $callback, int $maxAttempts = 3, int $delayMs = 300)
+{
+    $attempt = 0;
+    while (true) {
+        $attempt++;
+        try {
+            $result = $callback();
+            if ($attempt > 1) {
+                $this->info("  → DB $label OK (berhasil di percobaan ke-$attempt)");
+            }
+            return $result;
+        } catch (\Exception $e) {
+            $isConnIssue = str_contains($e->getMessage(), 'timeout')
+                || str_contains($e->getMessage(), 'could not receive data')
+                || str_contains($e->getMessage(), 'Connection refused')
+                || str_contains($e->getMessage(), 'SSL SYSCALL');
 
+            if ($attempt >= $maxAttempts || !$isConnIssue) {
+                $this->error("  → Gagal DB $label (percobaan ke-$attempt/$maxAttempts): " . $e->getMessage());
+                return null;
+            }
+
+            $this->warn("  ⚠ DB $label timeout, retry $attempt/$maxAttempts dalam {$delayMs}ms...");
+            usleep($delayMs * 1000);
+
+            // Reconnect koneksi DB kalau statusnya sudah putus (penting untuk Postgres)
+            try {
+                \DB::reconnect();
+            } catch (\Exception $reconnectEx) {
+                // abaikan, lanjut retry saja
+            }
+        }
+    }
+}
     /**
      * Fallback: Susun payload nested dari buffer in-memory untuk jalur modular
      */
