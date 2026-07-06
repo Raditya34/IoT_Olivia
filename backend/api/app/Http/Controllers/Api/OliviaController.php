@@ -171,12 +171,13 @@ class OliviaController extends Controller
      */
     public function storeEsp1(Request $request) {
         try {
-            $data = $request->has('payload') ? json_decode($request->input('payload'), true) : $request->all();
-            $res = Esp1Arang::create([
+            $data = $request->all();
+            $arangData = $data['arang'] ?? $data;
+            $esp1 = Esp1Arang::create([
                 'suhu_arang'   => $data['suhu_arang'] ?? 0,
                 'volume_arang' => $data['volume_arang'] ?? 0
             ]);
-            return response()->json(['status' => 'success', 'data' => $res], 200);
+            return response()->json(['status' => 'success', 'data' => $esp1], 201);
         } catch (\Exception $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
