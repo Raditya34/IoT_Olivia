@@ -116,7 +116,6 @@ class OliviaController extends Controller
             'status_layak'    => $data['status_layak'] ?? 'TIDAK LAYAK',
         ]);
 
-            Log::info("storeMaster Success: Data dari Master berhasil dipecah dan disimpan.");
 
                  return response()->json(['status' => 'success'], 201);
     } catch (\Exception $e) {
