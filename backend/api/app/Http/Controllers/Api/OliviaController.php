@@ -85,14 +85,14 @@ class OliviaController extends Controller
             }
 
             // 2. Simpan ke model Esp1Arang (Objek 'arang')
-            $arangData = $data['arang'] ?? [];
+            $arangData = $data['arang'] ?? $data;
             $resEsp1 = Esp1Arang::create([
                 'suhu_arang'   => $arangData['suhu_arang'] ?? 0.0,
                 'volume_arang' => $arangData['volume_arang'] ?? 0.0,
             ]);
 
             // 3. Simpan ke model Esp2Bleaching (Objek 'bleaching')
-            $bleachingData = $data['bleaching'] ?? [];
+            $bleachingData = $data['bleaching'] ?? $data;
             $resEsp2 = Esp2Bleaching::create([
                 'suhu_bleaching' => $bleachingData['suhu_bleaching'] ?? 0.0,
                 'valve'          => filter_var($bleachingData['valve'] ?? false, FILTER_VALIDATE_BOOLEAN),
@@ -107,7 +107,7 @@ class OliviaController extends Controller
             ]);
 
             // 4. Simpan ke model Esp3Validasi (Objek 'validasi')
-            $validasiData = $data['validasi'] ?? [];
+            $validasiData = $data['validasi'] ?? $data;
             $resEsp3 = Esp3Validasi::create([
                 'volume_validasi' => $validasiData['volume_validasi'] ?? 0.0,
                 'turbidity'       => $validasiData['turbidity'] ?? 0.0,
