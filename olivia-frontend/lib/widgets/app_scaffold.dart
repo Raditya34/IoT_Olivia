@@ -56,12 +56,6 @@ class AppScaffold extends StatelessWidget {
                         onPressed: () => Get.back(),
                       ),
                 actions: [
-                  // Gunakan rute dari AppRoutes, jangan diketik manual "/notifikasi"
-                  IconButton(
-                    icon: const Icon(Icons.notifications_none_rounded),
-                    onPressed: () => Get.toNamed(AppRoutes.notifications),
-                    tooltip: "Notifikasi",
-                  ),
                   IconButton(
                     icon: const Icon(Icons.person_outline_rounded),
                     onPressed: () => Get.toNamed(AppRoutes.profile),

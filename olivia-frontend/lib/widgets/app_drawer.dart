@@ -63,13 +63,6 @@ class AppDrawer extends StatelessWidget {
                   ),
                   _item(
                     context,
-                    icon: Icons.history_rounded,
-                    title: 'Riwayat',
-                    selected: currentRoute == AppRoutes.history,
-                    onTap: () => _safeNav(context, AppRoutes.history),
-                  ),
-                  _item(
-                    context,
                     icon: Icons.info_outline_rounded,
                     title: 'Informasi Sistem',
                     selected: currentRoute == AppRoutes.info,

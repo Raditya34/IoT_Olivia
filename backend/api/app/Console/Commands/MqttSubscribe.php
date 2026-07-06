@@ -72,6 +72,7 @@ class MqttSubscribe extends Command
                     $data = [
                         'system_on'    => $data['system_on'] ?? false,
                         'current_step' => $data['current_step'] ?? 'STANDBY',
+                        'process_step' => $data['process_step'] ?? 0,
                         'arang' => [
                             'suhu_arang'   => $data['suhu_arang'] ?? 0.0,
                             'volume_arang' => $data['volume_arang'] ?? 0.0,

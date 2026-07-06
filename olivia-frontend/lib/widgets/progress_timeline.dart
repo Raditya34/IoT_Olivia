@@ -27,13 +27,13 @@ class ProgressTimeline extends StatelessWidget {
     ];
 
     // Badge kanan atas
-    final String badgeLabel = !active || step == 0
-        ? 'IDLE'
-        : step >= 4
-            ? 'SELESAI'
+    final String badgeLabel = step >= 4
+        ? 'SELESAI'
+        : !active || step == 0
+            ? 'IDLE'
             : 'RUNNING';
 
-    final bool isRunning = active && step > 0;
+    final bool isRunning = step >= 4 || (active && step > 0);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -85,10 +85,13 @@ class ProgressTimeline extends StatelessWidget {
               return Row(
                 children: List.generate(items.length, (i) {
                   final firmStep = i + 1; // 1..4
-                  // done  = fase ini sudah LEWAT
-                  final bool done = active && step > firmStep;
+                  // done  = fase ini sudah LEWAT (tidak digerbang oleh `active`,
+                  // karena firmware sempat set system_on=false tepat saat step
+                  // mencapai 4/Selesai — kalau digerbang, "Selesai" tidak pernah nyala)
+                  final bool done = step > firmStep;
                   // current = firmware SEDANG di fase ini
-                  final bool current = active && step == firmStep;
+                  final bool current =
+                      step == firmStep && (active || step == 4);
 
                   final Color color = done
                       ? AppColors.success
@@ -140,7 +143,7 @@ class ProgressTimeline extends StatelessWidget {
                           height: 2,
                           margin: const EdgeInsets.only(bottom: 22),
                           // connector ikut teal saat step sudah MELEWATI fase ini
-                          color: (active && step > firmStep)
+                          color: (step > firmStep)
                               ? AppColors.success.withOpacity(0.7)
                               : AppColors.border,
                         ),
