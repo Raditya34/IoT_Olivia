@@ -181,43 +181,43 @@ class MqttSubscribe extends Command
     /**
      * Fallback: Simpan raw data flat dari device modular terpisah
      */
-    private function simpanKeDatabase(string $deviceCode, array $data): void
-    {
-        try {
-            match ($deviceCode) {
-                'OLIVIA-01', 'OLIVIA-MASTER' => Esp1Arang::create([
-                    'suhu_arang'   => $data['suhu_arang']   ?? 0,
-                    'volume_arang' => $data['volume_arang'] ?? 0,
-                ]),
-                'OLIVIA-02' => Esp2Bleaching::create([
-                    'suhu_bleaching' => $data['suhu_bleaching'] ?? 0,
-                    'valve' => (bool)($data['valve'] ?? false),
-                    'p1'    => (bool)($data['p1']    ?? false),
-                    'p2'    => (bool)($data['p2']    ?? false),
-                    'p3'    => (bool)($data['p3']    ?? false),
-                    'h1'    => (bool)($data['h1']    ?? false),
-                    'h2'    => (bool)($data['h2']    ?? false),
-                    'h3'    => (bool)($data['h3']    ?? false),
-                    'h4'    => (bool)($data['h4']    ?? false),
-                    'speed' => $data['speed'] ?? 0,
-                ]),
-                'OLIVIA-03' => Esp3Validasi::create([
-                    'volume_validasi' => $data['volume_validasi'] ?? 0,
-                    'turbidity'       => $data['turbidity']       ?? 0,
-                    'viscosity'       => $data['viscosity']       ?? 0,
-                    'r'               => $data['r']               ?? 0,
-                    'g'               => $data['g']               ?? 0,
-                    'b'               => $data['b']               ?? 0,
-                    'kelayakan'       => $data['kelayakan']        ?? 0.0,
-                    'status_layak'    => $data['status_layak']     ?? 'TIDAK LAYAK',
-                ]),
-                default => $this->warn("Device tidak dikenal: $deviceCode"),
-            };
-            $this->info("  → DB $deviceCode OK (Jalur Modular)");
-        } catch (\Exception $e) {
-            $this->error("  → Gagal DB $deviceCode: " . $e->getMessage());
-        }
-    }
+   // private function simpanKeDatabase(string $deviceCode, array $data): void
+    //{
+       // try {
+           // match ($deviceCode) {
+              //  'OLIVIA-01', 'OLIVIA-MASTER' => Esp1Arang::create([
+                  //  'suhu_arang'   => $data['suhu_arang']   ?? 0,
+                   // 'volume_arang' => $data['volume_arang'] ?? 0,
+                //]),
+                //'OLIVIA-02' => Esp2Bleaching::create([
+                  //  'suhu_bleaching' => $data['suhu_bleaching'] ?? 0,
+                    //'valve' => (bool)($data['valve'] ?? false),
+                   // 'p1'    => (bool)($data['p1']    ?? false),
+                   // 'p2'    => (bool)($data['p2']    ?? false),
+                   // 'p3'    => (bool)($data['p3']    ?? false),
+                   // 'h1'    => (bool)($data['h1']    ?? false),
+                   // 'h2'    => (bool)($data['h2']    ?? false),
+                   // 'h3'    => (bool)($data['h3']    ?? false),
+                   // 'h4'    => (bool)($data['h4']    ?? false),
+                   // 'speed' => $data['speed'] ?? 0,
+                // ]),
+                // 'OLIVIA-03' => Esp3Validasi::create([
+                   // 'volume_validasi' => $data['volume_validasi'] ?? 0,
+                   // 'turbidity'       => $data['turbidity']       ?? 0,
+                   // 'viscosity'       => $data['viscosity']       ?? 0,
+                   // 'r'               => $data['r']               ?? 0,
+                   // 'g'               => $data['g']               ?? 0,
+                   // 'b'               => $data['b']               ?? 0,
+                   // 'kelayakan'       => $data['kelayakan']        ?? 0.0,
+                   // 'status_layak'    => $data['status_layak']     ?? 'TIDAK LAYAK',
+               // ]),
+               // default => $this->warn("Device tidak dikenal: $deviceCode"),
+           // };
+           // $this->info("  → DB $deviceCode OK (Jalur Modular)");
+       // } catch (\Exception $e) {
+          //  $this->error("  → Gagal DB $deviceCode: " . $e->getMessage());
+       // }
+   // }
 private function retryCreate(string $label, \Closure $callback, int $maxAttempts = 3, int $delayMs = 300)
 {
     $attempt = 0;
