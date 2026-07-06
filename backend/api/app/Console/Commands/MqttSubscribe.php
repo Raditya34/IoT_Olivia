@@ -185,7 +185,7 @@ class MqttSubscribe extends Command
     {
         try {
             match ($deviceCode) {
-                'OLIVIA-01' => Esp1Arang::create([
+                'OLIVIA-01', 'OLIVIA-MASTER' => Esp1Arang::create([
                     'suhu_arang'   => $data['suhu_arang']   ?? 0,
                     'volume_arang' => $data['volume_arang'] ?? 0,
                 ]),
