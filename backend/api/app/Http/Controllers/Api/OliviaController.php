@@ -30,6 +30,8 @@ class OliviaController extends Controller
                 'status' => 'success',
                 'data' => [
                     'system_on' => (bool) ($master->system_on ?? false),
+                    'process_step' => (int) ($master->process_step ?? 0),
+                    'current_step' => $master->current_step ?? 'STANDBY',
 
                     'arang' => [
                         'suhu_arang'   => $esp1 ? (float)$esp1->suhu_arang : 0.0,
@@ -81,7 +83,9 @@ class OliviaController extends Controller
             $systemOn = filter_var($data['system_on'] ?? false, FILTER_VALIDATE_BOOLEAN);
             $master = MasterControl::first();
             if ($master) {
-                $master->update(['system_on' => $systemOn]);
+                $master->update(['system_on'    => $systemOn,
+                                'process_step' => (int) ($data['process_step'] ?? $master->process_step),
+                                'current_step' => $data['current_step'] ?? $master->current_step,]);
             }
 
     // SIMPAN DATA ARANG LANGSUNG DARI FLAT PAYLOAD

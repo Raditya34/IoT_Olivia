@@ -147,7 +147,9 @@ class MqttSubscribe extends Command
 
                     if (isset($data['system_on'])) {
                         try {
-                            MasterControl::query()->updateOrCreate([], ['system_on' => (bool)$data['system_on']]);
+                            MasterControl::query()->updateOrCreate([], ['system_on' => (bool)$data['system_on'],
+                            'process_step' => (int) ($data['process_step'] ?? 0),
+                            'current_step' => $data['current_step'] ?? 'STANDBY',]);
                         } catch (\Exception $e) { $this->error("  → Gagal sync MasterControl: " . $e->getMessage()); }
                     }
 
