@@ -29,7 +29,9 @@ class OliviaController extends Controller
             return response()->json([
                 'status' => 'success',
                 'data' => [
-                    'system_on' => (bool) ($master->system_on ?? false),
+                    'system_on'    => (bool) ($master->system_on ?? false),
+                    // ✅ FIX: sertakan process_step & current_step supaya ProgressTimeline
+                    // di Flutter ke-hydrate benar saat initial load / fallback polling HTTP
                     'process_step' => (int) ($master->process_step ?? 0),
                     'current_step' => $master->current_step ?? 'STANDBY',
 
@@ -69,7 +71,11 @@ class OliviaController extends Controller
         }
     }
 
-     public function storeMaster(Request $request)
+    /**
+     * SIMPAN DATA GABUNGAN DARI ESP32 MASTER VIA HTTP POST
+     * Endpoint: POST /api/iot/master/store
+     */
+    public function storeMaster(Request $request)
     {
         try {
             // Ambil payload mentah jika dikirim dalam string atau ambil langsung dari request objek
@@ -79,54 +85,98 @@ class OliviaController extends Controller
                 return response()->json(['status' => 'error', 'message' => 'Payload kosong'], 400);
             }
 
-            // 1. Ambil data utama sistem (opsional jika ingin mencocokkan master control database)
+            // 1. Simpan status sistem (system_on, process_step, current_step) ke MasterControl
             $systemOn = filter_var($data['system_on'] ?? false, FILTER_VALIDATE_BOOLEAN);
             $master = MasterControl::first();
             if ($master) {
-                $master->update(['system_on'    => $systemOn,
-                                'process_step' => (int) ($data['process_step'] ?? $master->process_step),
-                                'current_step' => $data['current_step'] ?? $master->current_step,]);
+                $this->retryCreate('MasterControl', fn() => $master->update([
+                    'system_on'    => $systemOn,
+                    // ✅ FIX: ikut simpan process_step & current_step, bukan cuma system_on
+                    'process_step' => (int) ($data['process_step'] ?? $master->process_step),
+                    'current_step' => $data['current_step'] ?? $master->current_step,
+                ]));
             }
 
-    // SIMPAN DATA ARANG LANGSUNG DARI FLAT PAYLOAD
-        Esp1Arang::create([
-            'suhu_arang'   => (float)($data['suhu_arang'] ?? 0),
-            'volume_arang' => (float)($data['volume_arang'] ?? 0),
-        ]);
+            // SIMPAN DATA ARANG LANGSUNG DARI FLAT PAYLOAD
+            $this->retryCreate('Arang', fn() => Esp1Arang::create([
+                'suhu_arang'   => (float)($data['suhu_arang'] ?? 0),
+                'volume_arang' => (float)($data['volume_arang'] ?? 0),
+            ]));
 
-        // SIMPAN DATA BLEACHING
-        Esp2Bleaching::create([
-            'suhu_bleaching' => (float)($data['suhu_bleaching'] ?? 0),
-            'valve'          => (bool)($data['valve'] ?? false),
-            'p1'             => (bool)($data['p1'] ?? false),
-            'p2'             => (bool)($data['p2'] ?? false),
-            'p3'             => (bool)($data['p3'] ?? false),
-            'h1'             => (bool)($data['h1'] ?? false),
-            'h2'             => (bool)($data['h2'] ?? false),
-            'h3'             => (bool)($data['h3'] ?? false),
-            'h4'             => (bool)($data['h4'] ?? false),
-            'speed'          => (int)($data['speed'] ?? 0),
-        ]);
+            // SIMPAN DATA BLEACHING
+            $this->retryCreate('Bleaching', fn() => Esp2Bleaching::create([
+                'suhu_bleaching' => (float)($data['suhu_bleaching'] ?? 0),
+                'valve'          => (bool)($data['valve'] ?? false),
+                'p1'             => (bool)($data['p1'] ?? false),
+                'p2'             => (bool)($data['p2'] ?? false),
+                'p3'             => (bool)($data['p3'] ?? false),
+                'h1'             => (bool)($data['h1'] ?? false),
+                'h2'             => (bool)($data['h2'] ?? false),
+                'h3'             => (bool)($data['h3'] ?? false),
+                'h4'             => (bool)($data['h4'] ?? false),
+                'speed'          => (int)($data['speed'] ?? 0),
+            ]));
 
-        // SIMPAN DATA VALIDASI
-        Esp3Validasi::create([
-            'volume_validasi' => (float)($data['volume_validasi'] ?? 0),
-            'turbidity'       => (float)($data['turbidity'] ?? 0),
-            'viscosity'       => (float)($data['viscosity'] ?? 0),
-            'r'               => (int)($data['r'] ?? 0),
-            'g'               => (int)($data['g'] ?? 0),
-            'b'               => (int)($data['b'] ?? 0),
-            'kelayakan'       => (float)($data['kelayakan'] ?? 0),
-            'status_layak'    => $data['status_layak'] ?? 'TIDAK LAYAK',
-        ]);
+            // SIMPAN DATA VALIDASI
+            $this->retryCreate('Validasi', fn() => Esp3Validasi::create([
+                'volume_validasi' => (float)($data['volume_validasi'] ?? 0),
+                'turbidity'       => (float)($data['turbidity'] ?? 0),
+                'viscosity'       => (float)($data['viscosity'] ?? 0),
+                'r'               => (int)($data['r'] ?? 0),
+                'g'               => (int)($data['g'] ?? 0),
+                'b'               => (int)($data['b'] ?? 0),
+                'kelayakan'       => (float)($data['kelayakan'] ?? 0),
+                'status_layak'    => $data['status_layak'] ?? 'TIDAK LAYAK',
+            ]));
 
-
-                 return response()->json(['status' => 'success'], 201);
-    } catch (\Exception $e) {
-        return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+            return response()->json(['status' => 'success'], 201);
+        } catch (\Exception $e) {
+            Log::error("storeMaster Error: " . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
     }
-}
 
+    /**
+     * ✅ NEW: Wrapper retry untuk operasi DB yang rawan kena Railway private
+     * network timeout. Pola sama persis dengan retryCreate() di MqttSubscribe.php,
+     * supaya jalur HTTP (storeMaster) punya proteksi yang sama dengan jalur MQTT.
+     */
+    private function retryCreate(string $label, \Closure $callback, int $maxAttempts = 3, int $delayMs = 300)
+    {
+        $attempt = 0;
+        while (true) {
+            $attempt++;
+            try {
+                $result = $callback();
+                if ($attempt > 1) {
+                    Log::info("  → DB $label OK (berhasil di percobaan ke-$attempt)");
+                }
+                return $result;
+            } catch (\Exception $e) {
+                $isConnIssue = str_contains($e->getMessage(), 'timeout')
+                    || str_contains($e->getMessage(), 'could not receive data')
+                    || str_contains($e->getMessage(), 'Connection refused')
+                    || str_contains($e->getMessage(), 'SSL SYSCALL')
+                    || str_contains($e->getMessage(), 'server has gone away')
+                    || str_contains($e->getMessage(), 'Lost connection');
+
+                if ($attempt >= $maxAttempts || !$isConnIssue) {
+                    Log::error("  → Gagal DB $label (percobaan ke-$attempt/$maxAttempts): " . $e->getMessage());
+                    return null;
+                }
+
+                Log::warning("  ⚠ DB $label timeout, retry $attempt/$maxAttempts dalam {$delayMs}ms...");
+                usleep($delayMs * 1000);
+
+                // Reconnect koneksi DB kalau statusnya sudah putus (penting untuk Postgres)
+                try {
+                    \DB::reconnect();
+                } catch (\Exception $reconnectEx) {
+                    // abaikan, lanjut retry saja
+                }
+            }
+        }
+    }
 
     /**
      * AMBIL DATA REKAP HISTORY
@@ -154,7 +204,7 @@ class OliviaController extends Controller
     }
 
     /**
-     * SIMPAN DATA DARI ESP32 VIA HTTP POST
+     * SIMPAN DATA DARI ESP32 VIA HTTP POST (modular, per-unit)
      */
     public function storeEsp1(Request $request) {
         try {

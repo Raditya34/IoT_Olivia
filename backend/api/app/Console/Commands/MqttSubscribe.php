@@ -147,9 +147,15 @@ class MqttSubscribe extends Command
 
                     if (isset($data['system_on'])) {
                         try {
-                            MasterControl::query()->updateOrCreate([], ['system_on' => (bool)$data['system_on'],
-                            'process_step' => (int) ($data['process_step'] ?? 0),
-                            'current_step' => $data['current_step'] ?? 'STANDBY',]);
+                            // ✅ FIX: ikut sync process_step & current_step ke MasterControl,
+                            // bukan cuma system_on — supaya /api/dashboard (HTTP) selalu
+                            // punya data step terbaru walaupun postToLaravel() dari ESP32
+                            // sempat gagal/telat.
+                            MasterControl::query()->updateOrCreate([], [
+                                'system_on'    => (bool) $data['system_on'],
+                                'process_step' => (int) ($data['process_step'] ?? 0),
+                                'current_step' => $data['current_step'] ?? 'STANDBY',
+                            ]);
                         } catch (\Exception $e) { $this->error("  → Gagal sync MasterControl: " . $e->getMessage()); }
                     }
 
@@ -272,7 +278,9 @@ private function republishNested(string $publishTopik): void
     $lastValidasi  = Esp3Validasi::latest('id')->first();
 
     $payload = json_encode([
-        'system_on' => $isSystemOn,
+        'system_on'    => $isSystemOn,
+        'process_step' => (int) ($master->process_step ?? 0),
+        'current_step' => $master->current_step ?? 'STANDBY',
 
         'arang' => [
             'suhu_arang'   => $d1['suhu_arang']   ?? ($lastArang ? (float)$lastArang->suhu_arang : 0.0),

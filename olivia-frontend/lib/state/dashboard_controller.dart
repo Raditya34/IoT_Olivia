@@ -211,43 +211,54 @@ class DashboardController extends GetxController {
         progressStep.value = _currentStepToInt(json['current_step']);
       }
 
-      // Parse Nested Data Unit 1 (Arang)
+      // Parse Data Unit 1 (Arang) — support NESTED (dari olivia/telemetry)
+      // maupun FLAT (dari olivia/OLIVIA-MASTER/telemetry langsung ESP32)
       final arang = json['arang'];
-      if (arang != null && arang is Map<String, dynamic>) {
-        suhuArang.value = _safeDouble(arang['suhu_arang']);
-        arangVol.value = _safeDouble(arang['volume_arang']);
+      final Map<String, dynamic> arangSrc =
+          (arang != null && arang is Map<String, dynamic>) ? arang : json;
+      if (arangSrc.containsKey('suhu_arang') ||
+          arangSrc.containsKey('volume_arang')) {
+        suhuArang.value = _safeDouble(arangSrc['suhu_arang']);
+        arangVol.value = _safeDouble(arangSrc['volume_arang']);
         _updateSparkline(sparkSuhuArang, suhuArang.value);
       }
 
-      // Parse Nested Data Unit 2 (Bleaching)
+      // Parse Data Unit 2 (Bleaching) — support NESTED maupun FLAT
       final bleach = json['bleaching'];
-      if (bleach != null && bleach is Map<String, dynamic>) {
-        suhuBleaching.value = _safeDouble(bleach['suhu_bleaching']);
-        bleachValve.value = _safeBool(bleach['valve']);
-        bleachP1.value = _safeBool(bleach['p1']);
-        bleachP2.value = _safeBool(bleach['p2']);
-        bleachP3.value = _safeBool(bleach['p3']);
-        bleachH1.value = _safeBool(bleach['h1']);
-        bleachH2.value = _safeBool(bleach['h2']);
-        bleachH3.value = _safeBool(bleach['h3']);
-        bleachH4.value = _safeBool(bleach['h4']);
-        bleachSpeed.value = _safeInt(bleach['speed']);
+      final Map<String, dynamic> bleachSrc =
+          (bleach != null && bleach is Map<String, dynamic>) ? bleach : json;
+      if (bleachSrc.containsKey('suhu_bleaching')) {
+        suhuBleaching.value = _safeDouble(bleachSrc['suhu_bleaching']);
+        bleachValve.value = _safeBool(bleachSrc['valve']);
+        bleachP1.value = _safeBool(bleachSrc['p1']);
+        bleachP2.value = _safeBool(bleachSrc['p2']);
+        bleachP3.value = _safeBool(bleachSrc['p3']);
+        bleachH1.value = _safeBool(bleachSrc['h1']);
+        bleachH2.value = _safeBool(bleachSrc['h2']);
+        bleachH3.value = _safeBool(bleachSrc['h3']);
+        bleachH4.value = _safeBool(bleachSrc['h4']);
+        bleachSpeed.value = _safeInt(bleachSrc['speed']);
         _updateSparkline(sparkSuhuBleaching, suhuBleaching.value);
       }
 
-      // Parse Nested Data Unit 3 (Validasi & Fuzzy)
+      // Parse Data Unit 3 (Validasi & Fuzzy) — support NESTED maupun FLAT
       final validasi = json['validasi'];
-      if (validasi != null && validasi is Map<String, dynamic>) {
-        validasiVol.value = _safeDouble(validasi['volume_validasi']);
-        ntu.value = _safeDouble(validasi['turbidity']);
-        viscosity.value = _safeDouble(validasi['viscosity']);
-        r.value = _safeInt(validasi['r']);
-        g.value = _safeInt(validasi['g']);
-        b.value = _safeInt(validasi['b']);
-        kelayakan.value = _safeDouble(validasi['kelayakan']);
+      final Map<String, dynamic> validasiSrc =
+          (validasi != null && validasi is Map<String, dynamic>)
+              ? validasi
+              : json;
+      if (validasiSrc.containsKey('volume_validasi') ||
+          validasiSrc.containsKey('turbidity')) {
+        validasiVol.value = _safeDouble(validasiSrc['volume_validasi']);
+        ntu.value = _safeDouble(validasiSrc['turbidity']);
+        viscosity.value = _safeDouble(validasiSrc['viscosity']);
+        r.value = _safeInt(validasiSrc['r']);
+        g.value = _safeInt(validasiSrc['g']);
+        b.value = _safeInt(validasiSrc['b']);
+        kelayakan.value = _safeDouble(validasiSrc['kelayakan']);
 
         statusLayak.value = _fallbackStatusLabel(
-          validasi['status_layak'],
+          validasiSrc['status_layak'],
           kelayakan.value,
         );
         warnaLabel.value = _fallbackColorLabel(r.value, g.value, b.value);
